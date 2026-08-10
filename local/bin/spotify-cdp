@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Minimal Chrome DevTools Protocol client, enough to evaluate JS in Spotify.
+
+Spotify is CEF, so the running client is a browser and its theme is a set of
+CSS custom properties. Setting those on :root restyles it in place — no
+`spicetify apply`, no reload, no gap in playback, because the audio lives in
+the native process rather than the web view.
+
+Why hand-rolled: this needs exactly one request/response over a websocket, and
+neither `websockets` nor `websocat` is installed. Sixty lines of stdlib beats
+a system package and a rebuild for a single Runtime.evaluate call.
+
+    spotify-cdp 'document.title'      evaluate an expression, print the result
+"""
+
+import base64
+import json
+import os
+import socket
+import struct
+import sys
+import urllib.request
+
+PORT = int(os.environ.get("SPOTIFY_CDP_PORT", "9222"))
+
+
+def page_target():
+    """The websocket URL of Spotify's main page."""
+    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json", timeout=3) as r:
+        targets = json.load(r)
+    pages = [t for t in targets if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
+    if not pages:
+        raise RuntimeError("no debuggable page; is Spotify running with --remote-debugging-port?")
+    # Spotify's UI is the one with the xpui document; fall back to the first.
+    for t in pages:
+        if "xpui" in t.get("url", ""):
+            return t["webSocketDebuggerUrl"]
+    return pages[0]["webSocketDebuggerUrl"]
+
+
+def ws_connect(url):
+    _, _, rest = url.partition("://")
+    hostport, _, path = rest.partition("/")
+    host, _, port = hostport.partition(":")
+    sock = socket.create_connection((host, int(port or 80)), timeout=5)
+    key = base64.b64encode(os.urandom(16)).decode()
+    sock.sendall(
+        (
+            f"GET /{path} HTTP/1.1\r\n"
+            f"Host: {hostport}\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            "Sec-WebSocket-Version: 13\r\n\r\n"
+        ).encode()
+    )
+    # Drain the handshake response up to the blank line.
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise RuntimeError("connection closed during handshake")
+        buf += chunk
+    if b"101" not in buf.split(b"\r\n")[0]:
+        raise RuntimeError(f"upgrade refused: {buf.split(chr(13).encode())[0]!r}")
+    return sock
+
+
+def ws_send(sock, payload: bytes):
+    """A single masked text frame. Payloads here are small but can exceed 125b."""
+    header = bytearray([0x81])  # FIN + text
+    n = len(payload)
+    if n < 126:
+        header.append(0x80 | n)
+    elif n < 65536:
+        header.append(0x80 | 126)
+        header += struct.pack(">H", n)
+    else:
+        header.append(0x80 | 127)
+        header += struct.pack(">Q", n)
+    mask = os.urandom(4)
+    header += mask
+    sock.sendall(bytes(header) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+
+def ws_recv(sock) -> bytes:
+    def exactly(n):
+        out = b""
+        while len(out) < n:
+            chunk = sock.recv(n - len(out))
+            if not chunk:
+                raise RuntimeError("connection closed")
+            out += chunk
+        return out
+
+    while True:
+        b0, b1 = exactly(2)
+        opcode = b0 & 0x0F
+        length = b1 & 0x7F
+        if length == 126:
+            length = struct.unpack(">H", exactly(2))[0]
+        elif length == 127:
+            length = struct.unpack(">Q", exactly(8))[0]
+        data = exactly(length)
+        if opcode == 0x1:  # text; server frames are never masked
+            return data
+        if opcode == 0x8:  # close
+            raise RuntimeError("server closed the connection")
+        # ping/pong/continuation: keep reading
+
+
+def evaluate(expression: str):
+    sock = ws_connect(page_target())
+    try:
+        ws_send(
+            sock,
+            json.dumps(
+                {
+                    "id": 1,
+                    "method": "Runtime.evaluate",
+                    "params": {"expression": expression, "returnByValue": True},
+                }
+            ).encode(),
+        )
+        while True:
+            msg = json.loads(ws_recv(sock))
+            if msg.get("id") == 1:  # skip any events that arrive first
+                return msg
+    finally:
+        sock.close()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(__doc__.strip().splitlines()[-1].strip(), file=sys.stderr)
+        sys.exit(2)
+    reply = evaluate(sys.argv[1])
+    if "error" in reply:
+        print(reply["error"], file=sys.stderr)
+        sys.exit(1)
+    result = reply.get("result", {})
+    if result.get("exceptionDetails"):
+        print(result["exceptionDetails"].get("text", "exception"), file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(result.get("result", {}).get("value")))

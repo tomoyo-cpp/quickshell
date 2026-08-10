@@ -1,0 +1,12 @@
+{
+    "workbench.colorTheme": "Catppuccin Macchiato",
+    "workbench.secondarySideBar.defaultVisibility": "hidden",
+    "explorer.confirmDelete": false,
+    "explorer.confirmPasteNative": false,
+    "explorer.confirmDragAndDrop": false,
+    "git.enableSmartCommit": true,
+    "git.autofetch": true,
+    "git.confirmSync": false,
+    "claudeCode.preferredLocation": "panel",
+    "terminal.integrated.mouseWheelScrollSensitivity": 3
+}

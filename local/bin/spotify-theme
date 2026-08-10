@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Install and colour the spicetify `text` theme from the quickshell bar's palette.
+
+`text` is the minimal theme from github.com/spicetify/spicetify-themes — track
+lists as plain text, no cards, no gradients. It ships CatppuccinMocha,
+CatppuccinMacchiato and CatppuccinLatte schemes, but those hardcode mauve as
+the accent and there is no Frappe at all. So rather than pick one, this writes
+a `[bar]` scheme built from whatever the Appearance tab is actually set to —
+all four flavours, all sixteen accents.
+
+    spotify-theme                    regenerate the [bar] scheme
+    spotify-theme --apply            regenerate and re-patch Spotify
+    spotify-theme --accent text      pin one accent, ignoring the bar
+    spotify-theme --accent auto      follow the bar's accent again
+    spotify-theme --update-theme     re-fetch `text` from upstream
+
+The accent pin lives in ~/.config/spicetify/accent-override so plain runs keep
+honouring it. Restarting is never done from here — spicetify's own restart
+kills playback without warning:
+
+    systemctl --user restart spotify-spiced
+"""
+
+import configparser
+import glob
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HOME = os.path.expanduser("~")
+SPICE = f"{HOME}/.config/spicetify"
+THEME_DIR = f"{SPICE}/Themes/text"
+OVERRIDE = f"{SPICE}/accent-override"
+UPSTREAM = "https://github.com/spicetify/spicetify-themes.git"
+SCHEME = "bar"
+
+MARKER = "/* ── quickshell additions ──"
+TRANSPARENT_FLAG = f"{SPICE}/transparent"
+
+# Appended to the theme's own user.css, and ONLY when transparency is turned on
+# — which it is not by default, because it does not work here.
+#
+# Measured rather than assumed: with this applied, body, #main,
+# .Root__top-container and .Root__nav-bar all compute to rgba(0,0,0,0). Spotify
+# is CEF, CEF never asked the compositor for a translucent visual, so those
+# surfaces render black instead of showing the wallpaper — and the whole client
+# looks unthemed. The theme's own #24273a never gets painted.
+#
+# Kept behind `--transparent on` in case a future Spotify/CEF build does
+# request an alpha visual, at which point this becomes correct rather than
+# destructive.
+EXTRA_CSS = f"""
+{MARKER} ────────────────────────────────────
+ * Written by spotify-theme --transparent on. Edit there, not here.
+ */
+:is(
+  #main,
+  body,
+  .Root__top-container,
+  .Root__main-view,
+  .Root__nav-bar,
+  .Root__now-playing-bar,
+  .main-view-container__scroll-node,
+  .main-nowPlayingBar-nowPlayingBar,
+  .main-yourLibraryX-library
+) {{
+  background-color: transparent !important;
+}}
+
+/* Things that have to stay readable keep a surface of their own. */
+.main-contextMenu-menu,
+.main-trackCreditsModal-container,
+.GenericModal {{
+  background-color: var(--spice-main) !important;
+}}
+"""
+
+PALETTES = {
+    "mocha": {
+        "rosewater": "f5e0dc", "flamingo": "f2cdcd", "pink": "f5c2e7",
+        "mauve": "cba6f7", "red": "f38ba8", "maroon": "eba0ac",
+        "peach": "fab387", "yellow": "f9e2af", "green": "a6e3a1",
+        "teal": "94e2d5", "sky": "89dceb", "sapphire": "74c7ec",
+        "blue": "89b4fa", "lavender": "b4befe", "text": "cdd6f4",
+        "subtext1": "bac2de", "subtext0": "a6adc8", "overlay2": "9399b2",
+        "overlay1": "7f849c", "overlay0": "6c7086", "surface2": "585b70",
+        "surface1": "45475a", "surface0": "313244", "base": "1e1e2e",
+        "mantle": "181825", "crust": "11111b",
+    },
+    "macchiato": {
+        "rosewater": "f4dbd6", "flamingo": "f0c6c6", "pink": "f5bde6",
+        "mauve": "c6a0f6", "red": "ed8796", "maroon": "ee99a0",
+        "peach": "f5a97f", "yellow": "eed49f", "green": "a6da95",
+        "teal": "8bd5ca", "sky": "91d7e3", "sapphire": "7dc4e4",
+        "blue": "8aadf4", "lavender": "b7bdf8", "text": "cad3f5",
+        "subtext1": "b8c0e0", "subtext0": "a5adcb", "overlay2": "939ab7",
+        "overlay1": "8087a2", "overlay0": "6e738d", "surface2": "5b6078",
+        "surface1": "494d64", "surface0": "363a4f", "base": "24273a",
+        "mantle": "1e2030", "crust": "181926",
+    },
+    "frappe": {
+        "rosewater": "f2d5cf", "flamingo": "eebebe", "pink": "f4b8e4",
+        "mauve": "ca9ee6", "red": "e78284", "maroon": "ea999c",
+        "peach": "ef9f76", "yellow": "e5c890", "green": "a6d189",
+        "teal": "81c8be", "sky": "99d1db", "sapphire": "85c1dc",
+        "blue": "8caaee", "lavender": "babbf1", "text": "c6d0f5",
+        "subtext1": "b5bfe2", "subtext0": "a5adce", "overlay2": "949cbb",
+        "overlay1": "838ba7", "overlay0": "737994", "surface2": "626880",
+        "surface1": "51576d", "surface0": "414559", "base": "303446",
+        "mantle": "292c3c", "crust": "232634",
+    },
+    "latte": {
+        "rosewater": "dc8a78", "flamingo": "dd7878", "pink": "ea76cb",
+        "mauve": "8839ef", "red": "d20f39", "maroon": "e64553",
+        "peach": "fe640b", "yellow": "df8e1d", "green": "40a02b",
+        "teal": "179299", "sky": "04a5e5", "sapphire": "209fb5",
+        "blue": "1e66f5", "lavender": "7287fd", "text": "4c4f69",
+        "subtext1": "5c5f77", "subtext0": "6c6f85", "overlay2": "7c7f93",
+        "overlay1": "8c8fa1", "overlay0": "9ca0b0", "surface2": "acb0be",
+        "surface1": "bcc0cc", "surface0": "ccd0da", "base": "eff1f5",
+        "mantle": "e6e9ef", "crust": "dce0e8",
+    },
+}
+
+
+def bar_settings(argv):
+    """Whatever the Appearance tab is currently set to.
+
+    --flavour / --use-accent take precedence over the file. The shell passes
+    them because it knows the new values before they reach disk: Settings
+    debounces its writes by 400ms, so a caller triggered by the change and
+    reading the file back would race it and apply the previous accent. That is
+    not a hypothetical — the service's own debounce was shorter, so it lost
+    that race every single time.
+    """
+    flavour = accent = None
+    if "--flavour" in argv:
+        flavour = argv[argv.index("--flavour") + 1]
+    if "--use-accent" in argv:
+        accent = argv[argv.index("--use-accent") + 1]
+    if flavour and accent:
+        return flavour, accent
+
+    hits = glob.glob(f"{HOME}/.local/state/quickshell/by-shell/*/settings.json")
+    if not hits:
+        return flavour or "mocha", accent or "text"
+    with open(max(hits, key=os.path.getmtime)) as fh:
+        data = json.load(fh)
+    return flavour or data.get("flavour", "mocha"), accent or data.get("accent", "text")
+
+
+def install_theme(force=False):
+    if os.path.isdir(THEME_DIR) and not force:
+        return
+    print("fetching `text` from spicetify-themes…", flush=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(
+            ["git", "clone", "--depth", "1", "--quiet", UPSTREAM, f"{tmp}/themes"],
+            check=True,
+        )
+        shutil.rmtree(THEME_DIR, ignore_errors=True)
+        os.makedirs(os.path.dirname(THEME_DIR), exist_ok=True)
+        shutil.copytree(f"{tmp}/themes/text", THEME_DIR)
+
+    print(f"installed -> {THEME_DIR}", flush=True)
+
+
+def apply_transparency(argv):
+    """Add or strip the transparency block. Off unless explicitly turned on."""
+    if "--transparent" in argv:
+        want = argv[argv.index("--transparent") + 1] == "on"
+        os.makedirs(SPICE, exist_ok=True)
+        if want:
+            open(TRANSPARENT_FLAG, "w").close()
+        elif os.path.exists(TRANSPARENT_FLAG):
+            os.remove(TRANSPARENT_FLAG)
+    else:
+        want = os.path.exists(TRANSPARENT_FLAG)
+
+    css = f"{THEME_DIR}/user.css"
+    if not os.path.exists(css):
+        return want
+    with open(css) as fh:
+        body = fh.read()
+    # Always rebuild from the block-free text, so toggling either way is clean
+    # and re-running never stacks up copies.
+    base = body.split(MARKER)[0].rstrip() + "\n"
+    new = base + EXTRA_CSS if want else base
+    if new != body:
+        with open(css, "w") as fh:
+            fh.write(new)
+    return want
+
+
+def accent_override(argv):
+    """Read, set or clear the pinned accent. Returns the pin, or None."""
+    if "--accent" in argv:
+        want = argv[argv.index("--accent") + 1]
+        os.makedirs(SPICE, exist_ok=True)
+        if want == "auto":
+            if os.path.exists(OVERRIDE):
+                os.remove(OVERRIDE)
+            return None
+        with open(OVERRIDE, "w") as fh:
+            fh.write(want)
+        return want
+    if os.path.exists(OVERRIDE):
+        with open(OVERRIDE) as fh:
+            return fh.read().strip() or None
+    return None
+
+
+def main():
+    install_theme(force="--update-theme" in sys.argv)
+    transparent = apply_transparency(sys.argv)
+
+    flavour, accent = bar_settings(sys.argv)
+    palette = PALETTES.get(flavour, PALETTES["mocha"])
+
+    pinned = accent_override(sys.argv)
+    if pinned:
+        accent = pinned
+
+    # "black" is the bar's name for a neutral accent and has no Catppuccin
+    # entry; fall back to the foreground colour.
+    key = accent if accent in palette else "text"
+    hi = palette[key]
+
+    # `text` uses its own key names — nothing like the generic spicetify set.
+    ini = configparser.ConfigParser()
+    ini.optionxform = str
+    ini.read(f"{THEME_DIR}/color.ini")
+    ini[SCHEME] = {
+        "accent": hi,
+        "accent-active": hi,
+        "accent-inactive": palette["base"],
+        "banner": hi,
+        "border-active": hi,
+        "border-inactive": palette["surface0"],
+        "header": palette["surface2"],
+        "highlight": palette["surface2"],
+        "main": palette["base"],
+        "notification": palette["blue"],
+        "notification-error": palette["red"],
+        "subtext": palette["subtext0"],
+        "text": palette["text"],
+    }
+    with open(f"{THEME_DIR}/color.ini", "w") as fh:
+        ini.write(fh, space_around_delimiters=True)
+
+    subprocess.run(["spicetify", "config", "current_theme", "text"], check=False,
+                   stdout=subprocess.DEVNULL)
+    subprocess.run(["spicetify", "config", "color_scheme", SCHEME], check=False,
+                   stdout=subprocess.DEVNULL)
+    subprocess.run(["spicetify", "config", "inject_theme_js", "1", "replace_colors", "1"],
+                   check=False, stdout=subprocess.DEVNULL)
+
+    origin = "pinned" if pinned else "from the bar"
+    # flush: stdout is block-buffered when piped, so without this the summary
+    # lands after spicetify's own output rather than before it.
+    print(f"text / [{SCHEME}]: {flavour}, accent {accent} ({origin}, #{hi})"
+          f"{'  +transparent' if transparent else ''}", flush=True)
+
+    # Colour changes ride on CSS variables and need no reload. A transparency
+    # toggle rewrites the stylesheet itself, so the page has to re-read it —
+    # location.reload() reloads the web view only, and Spotify's audio is in
+    # the native process, so playback carries straight on.
+    if "--reload" in sys.argv:
+        subprocess.run(["spicetify", "-n", "refresh"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cdp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spotify-cdp")
+        subprocess.run([cdp, "location.reload()"], capture_output=True)
+        print("stylesheet refreshed and the client reloaded", flush=True)
+
+    if "--live" in sys.argv:
+        live(palette, hi)
+
+    if "--apply" in sys.argv:
+        print("patching xpui — takes about half a minute", flush=True)
+        # -n: never let spicetify restart Spotify out from under playback.
+        subprocess.run(["spicetify", "-n", "apply"], check=False)
+        print("done — systemctl --user restart spotify-spiced", flush=True)
+
+
+def live(palette, hi):
+    """Restyle the running client in place, over the devtools protocol.
+
+    Every --spice-* variable is set, not just the thirteen the [bar] scheme
+    names: the rest were generated by the last `spicetify apply` from whatever
+    flavour was current then, and would otherwise be left behind when the
+    flavour changes.
+
+    Inline styles on documentElement are :root with higher specificity than the
+    stylesheet's own :root block, so these win without touching a file.
+    """
+    p = palette
+    colours = {
+        "accent": hi, "accent-active": hi, "accent-inactive": p["base"],
+        "banner": hi, "border-active": hi, "border-inactive": p["surface0"],
+        "button": hi, "button-active": hi, "button-disabled": p["surface2"],
+        "card": p["mantle"], "header": p["surface2"], "highlight": p["surface2"],
+        "highlight-elevated": p["surface1"], "main": p["base"],
+        "main-elevated": p["mantle"], "misc": p["overlay0"],
+        "notification": p["blue"], "notification-error": p["red"],
+        "player": p["crust"], "selected-row": p["subtext0"], "shadow": p["crust"],
+        "sidebar": p["crust"], "subtext": p["subtext0"], "tab-active": p["surface0"],
+        "text": p["text"],
+    }
+
+    js = (
+        "(()=>{const c=" + json.dumps(colours) + ";"
+        "const s=document.documentElement.style;"
+        "for(const [k,v] of Object.entries(c)){"
+        "s.setProperty('--spice-'+k,'#'+v);"
+        "s.setProperty('--spice-rgb-'+k,[0,2,4].map(i=>parseInt(v.substr(i,2),16)).join(','));"
+        "}return Object.keys(c).length;})()"
+    )
+
+    cdp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spotify-cdp")
+    res = subprocess.run([cdp, js], capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"live restyle failed: {res.stderr.strip()}", file=sys.stderr, flush=True)
+        print("  (is Spotify running? the devtools port only opens at launch)",
+              file=sys.stderr, flush=True)
+        return
+
+    print(f"live: {res.stdout.strip()} variables pushed to the running client", flush=True)
+
+    # The inline styles die with the page. Refresh writes the new colours into
+    # the theme's own CSS so the next launch starts correct — it only rewrites
+    # colours and styles, so it is seconds rather than the full apply.
+    subprocess.run(["spicetify", "-n", "refresh"], check=False,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+if __name__ == "__main__":
+    main()

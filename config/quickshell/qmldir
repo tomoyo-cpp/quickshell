@@ -1,0 +1,104 @@
+# Every component used across files is listed here, not just the
+# singletons — a qmldir makes this directory an explicit module.
+#
+# Paths are relative, so the files can live in folders while the type
+# names stay flat: `import` sees Theme, not services/Theme.
+
+# Services — singletons holding state and talking to the system
+singleton Apps 1.0 services/Apps.qml
+singleton Backlight 1.0 services/Backlight.qml
+singleton BatteryAlert 1.0 services/BatteryAlert.qml
+singleton Cava 1.0 services/Cava.qml
+singleton Cliphist 1.0 services/Cliphist.qml
+singleton Eq 1.0 services/Eq.qml
+singleton Cursors 1.0 services/Cursors.qml
+singleton GtkTheme 1.0 services/GtkTheme.qml
+singleton Keybinds 1.0 services/Keybinds.qml
+singleton Lyrics 1.0 services/Lyrics.qml
+singleton KittyTheme 1.0 services/KittyTheme.qml
+singleton NightLight 1.0 services/NightLight.qml
+singleton Niri 1.0 services/Niri.qml
+singleton NiriTheme 1.0 services/NiriTheme.qml
+singleton Notifs 1.0 services/Notifs.qml
+singleton Procs 1.0 services/Procs.qml
+singleton Recorder 1.0 services/Recorder.qml
+singleton Preview 1.0 services/Preview.qml
+singleton Presets 1.0 services/Presets.qml
+singleton Settings 1.0 services/Settings.qml
+singleton SpotifyTheme 1.0 services/SpotifyTheme.qml
+singleton SwaylockTheme 1.0 services/SwaylockTheme.qml
+singleton SysMon 1.0 services/SysMon.qml
+singleton Theme 1.0 services/Theme.qml
+singleton Todos 1.0 services/Todos.qml
+singleton Wallpapers 1.0 services/Wallpapers.qml
+
+# Components — reusable building blocks
+Caption 1.0 components/Caption.qml
+ChipButton 1.0 components/ChipButton.qml
+Choice 1.0 components/Choice.qml
+CircleGauge 1.0 components/CircleGauge.qml
+Container 1.0 components/Container.qml
+Equalizer 1.0 components/Equalizer.qml
+Glyph 1.0 components/Glyph.qml
+InfoRow 1.0 components/InfoRow.qml
+KeyCapture 1.0 components/KeyCapture.qml
+LevelSlider 1.0 components/LevelSlider.qml
+LyricsView 1.0 components/LyricsView.qml
+MarqueeText 1.0 components/MarqueeText.qml
+MiniBar 1.0 components/MiniBar.qml
+ModChip 1.0 components/ModChip.qml
+Pct 1.0 components/Pct.qml
+Pill 1.0 components/Pill.qml
+PresetsCol 1.0 components/PresetsCol.qml
+PreviewCol 1.0 components/PreviewCol.qml
+ScrollTrack 1.0 components/ScrollTrack.qml
+Setting 1.0 components/Setting.qml
+SettingsCol 1.0 components/SettingsCol.qml
+SliderRow 1.0 components/SliderRow.qml
+SortChip 1.0 components/SortChip.qml
+Sparkline 1.0 components/Sparkline.qml
+SysGauge 1.0 components/SysGauge.qml
+CursorsCol 1.0 components/CursorsCol.qml
+SystemThemeCol 1.0 components/SystemThemeCol.qml
+Thumbnail 1.0 components/Thumbnail.qml
+ToggleSwitch 1.0 components/ToggleSwitch.qml
+VDivider 1.0 components/VDivider.qml
+WaveSlider 1.0 components/WaveSlider.qml
+WindowChromeCol 1.0 components/WindowChromeCol.qml
+
+# Widgets — items that sit in the bar
+BatteryWidget 1.0 widgets/BatteryWidget.qml
+ClipboardWidget 1.0 widgets/ClipboardWidget.qml
+ClockWidget 1.0 widgets/ClockWidget.qml
+KeyboardWidget 1.0 widgets/KeyboardWidget.qml
+LeftCluster 1.0 widgets/LeftCluster.qml
+MediaWidget 1.0 widgets/MediaWidget.qml
+NetworkWidget 1.0 widgets/NetworkWidget.qml
+RecordWidget 1.0 widgets/RecordWidget.qml
+ScreenshotWidget 1.0 widgets/ScreenshotWidget.qml
+SettingsWidget 1.0 widgets/SettingsWidget.qml
+SysMonWidget 1.0 widgets/SysMonWidget.qml
+Workspaces 1.0 widgets/Workspaces.qml
+
+# Surfaces — windows: the bar, its panels, overlays
+Bar 1.0 surfaces/Bar.qml
+BatteryPanel 1.0 surfaces/BatteryPanel.qml
+CalendarPanel 1.0 surfaces/CalendarPanel.qml
+ClipboardPanel 1.0 surfaces/ClipboardPanel.qml
+Dashboard 1.0 surfaces/Dashboard.qml
+Launcher 1.0 surfaces/Launcher.qml
+MediaPanel 1.0 surfaces/MediaPanel.qml
+NetworkPanel 1.0 surfaces/NetworkPanel.qml
+NotificationPanel 1.0 surfaces/NotificationPanel.qml
+Osd 1.0 surfaces/Osd.qml
+PanelShell 1.0 surfaces/PanelShell.qml
+PreviewStop 1.0 surfaces/PreviewStop.qml
+Toasts 1.0 surfaces/Toasts.qml
+
+
+# Dashboard pages — split out of the old 3.5k-line Dashboard.qml
+DashPage 1.0 surfaces/dashboard/DashPage.qml
+SettingsPage 1.0 surfaces/dashboard/SettingsPage.qml
+AppearancePage 1.0 surfaces/dashboard/AppearancePage.qml
+SystemPage 1.0 surfaces/dashboard/SystemPage.qml
+WallpaperPage 1.0 surfaces/dashboard/WallpaperPage.qml

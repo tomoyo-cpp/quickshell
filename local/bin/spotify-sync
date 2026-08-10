@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Build a writable copy of Spotify that spicetify can patch, then patch it.
+#
+# spicetify rewrites Apps/xpui.spa inside the Spotify installation. On NixOS
+# that lives in /nix/store and is read-only, so there is nothing to patch —
+# this makes a copy under ~/.local/share that spicetify owns.
+#
+# Only two things are really copied: the 54M binary, because it locates
+# Apps/ relative to itself via /proc/self/exe and a symlink would resolve
+# back into the store, and Apps/ itself, which is the part being rewritten.
+# Everything else — libcef.so alone is 233M — is symlinked back to the store.
+#
+# Re-run this after any nixos-rebuild that moves Spotify to a new store path.
+# It is idempotent, and it detects the move on its own.
+
+set -euo pipefail
+
+DEST="$HOME/.local/share/spicetify-spotify"
+STAMP="$DEST/.store-path"
+
+# Resolve the current store path from the wrapper on PATH rather than pinning
+# it: it changes with every Spotify update.
+launcher=$(command -v spotify || true)
+[[ -n $launcher ]] || {
+    echo "spotify is not on PATH" >&2
+    exit 1
+}
+SRC=$(dirname "$(readlink -f "$launcher")")
+
+[[ -f $SRC/.spotify-wrapped ]] || {
+    echo "not a Spotify install: $SRC" >&2
+    exit 1
+}
+
+if [[ ${1:-} == --status ]]; then
+    echo "store   : $SRC"
+    echo "copy    : $DEST"
+    echo "stamped : $(cat "$STAMP" 2>/dev/null || echo none)"
+    exit 0
+fi
+
+if [[ $(cat "$STAMP" 2>/dev/null || true) == "$SRC" && ${1:-} != --force ]]; then
+    echo "copy is already current ($SRC)"
+else
+    echo "syncing $SRC -> $DEST"
+    rm -rf "$DEST"
+    mkdir -p "$DEST"
+
+    # Symlink everything by default...
+    for entry in "$SRC"/* "$SRC"/.[!.]*; do
+        [[ -e $entry ]] || continue
+        name=$(basename "$entry")
+        case "$name" in
+            Apps | .spotify-wrapped | spotify) continue ;;
+        esac
+        ln -s "$entry" "$DEST/$name"
+    done
+
+    # ...and copy only what has to be real.
+    cp -r "$SRC/Apps" "$DEST/Apps"
+    cp "$SRC/.spotify-wrapped" "$DEST/.spotify-wrapped"
+    chmod -R u+w "$DEST/Apps" "$DEST/.spotify-wrapped"
+
+    # The launcher is a generated env-var wrapper ending in an exec of the
+    # real binary by absolute store path. Reuse it verbatim, repointed at our
+    # copy, so every GIO/GTK/LD_LIBRARY_PATH export stays exactly as nixpkgs
+    # set it — those are what make Spotify start at all.
+    sed "s|$SRC/.spotify-wrapped|$DEST/.spotify-wrapped|g" "$SRC/spotify" > "$DEST/spotify"
+
+    # Open the CEF devtools port so spotify-theme --live can restyle the
+    # running client instead of needing a restart. The port only exists if it
+    # is passed at launch, which is why it is baked into the wrapper rather
+    # than the desktop entry — every launch needs it, however it starts.
+    #
+    # Loopback only, and it is worth knowing what it is: anything that can
+    # reach 127.0.0.1:9222 can run JavaScript inside Spotify. Drop the flag
+    # here and re-run this script to close it again.
+    sed -i "s|\(\"$DEST/.spotify-wrapped\"\)|\1 --remote-debugging-port=9222|" "$DEST/spotify"
+    chmod +x "$DEST/spotify"
+
+    echo "$SRC" > "$STAMP"
+fi
+
+# ── Patch ───────────────────────────────────────────────────────────────
+spicetify config spotify_path "$DEST" >/dev/null
+spicetify config prefs_path "$HOME/.config/spotify/prefs" >/dev/null
+
+# Installs the `text` theme if missing and regenerates its [bar] colour scheme
+# from the Appearance tab. Also sets current_theme / color_scheme, so those are
+# owned in exactly one place.
+"$(dirname "$0")/spotify-theme"
+
+# -n: never restart Spotify from here. Patching the copy has no effect on a
+# running store build anyway, so killing playback would buy nothing. The new
+# look appears the next time Spotify is launched.
+spicetify -n backup apply
+
+cat <<EOF
+
+Patched. Launch it with the copy, not the store build:
+  $DEST/spotify
+
+~/.local/share/applications/spotify.desktop already points there, so the
+launcher and the bar will pick the right one up.
+EOF
