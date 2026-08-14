@@ -52,10 +52,11 @@ for f in settings.json keybindings.json snippets; do
     [[ -e "$DOTFILES/config/vscode/$f" ]] && link "$DOTFILES/config/vscode/$f" "$CONFIG/Code/User/$f"
 done
 
-# ── ~/.local/bin ─────────────────────────────────────────────────────────
+# ── ~/.local ─────────────────────────────────────────────────────────────
 echo
-echo "$HOME/.local/bin"
+echo "$HOME/.local"
 link "$DOTFILES/local/bin" "$HOME/.local/bin"
+link "$DOTFILES/local/share/applications" "$HOME/.local/share/applications"
 
 # ── NixOS ────────────────────────────────────────────────────────────────
 # Root-owned, so this one needs sudo and is left to you. hardware-configuration

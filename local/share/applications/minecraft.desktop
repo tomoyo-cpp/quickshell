@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Minecraft
+GenericName=PrismLauncher
+Comment=Launch PrismLauncher with the performance profile and X11 set up
+Exec=/home/tomoyo/.local/bin/minecraft
+Icon=org.prismlauncher.PrismLauncher
+Terminal=false
+Categories=Game;
+Keywords=minecraft;prism;hypixel;skyblock;
+StartupNotify=true

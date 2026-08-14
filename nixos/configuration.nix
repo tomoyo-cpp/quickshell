@@ -210,6 +210,12 @@
     # Wayland tooling
     wayland wayland-utils wl-clipboard cliphist
     xwayland xdg-utils
+    # niri has no built-in X server. xwayland-satellite provides one on
+    # demand, and niri spawns and manages it once the config.kdl block is
+    # present. Without this, DISPLAY is unset and X11-only programs — which
+    # includes Minecraft 1.8.9, since LWJGL 2 has no Wayland backend — cannot
+    # start at all.
+    xwayland-satellite
     # Niri ecosystem
     waybar fuzzel mako swaylock swayidle
     quickshell      # QML desktop shell (custom Catppuccin bar)
@@ -240,6 +246,12 @@
     # Spotify install, which is a read-only store path — so ~/.local/bin/
     # spotify-sync builds a writable copy of the app and patches that instead.
     spicetify-cli
+    # Minecraft. PrismLauncher manages instances and mod loaders itself;
+    # Forge 1.8.9 — which is what Hypixel SkyBlock's mod ecosystem targets —
+    # needs Java 8 specifically, so it is pinned here rather than left to
+    # whatever JDK happens to be on PATH.
+    prismlauncher
+    temurin-jre-bin-8
     blender         # 3D suite (Catppuccin Mocha theme in ~/.config/blender)
     obs-studio      # screen capture via the PipeWire portal on Wayland
     wl-screenrec    # wlr-screencopy -> VA-API, near-zero CPU vs OBS + x264

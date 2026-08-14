@@ -8,6 +8,13 @@ spawn-at-startup "wl-paste" "--watch" "cliphist" "store" "-max-items" "15"
 spawn-at-startup "/home/tomoyo/.config/niri/start-awww.sh"
 spawn-at-startup "mullvad-gui"
 
+// niri ships no X server of its own. This hands X11-only clients to
+// xwayland-satellite, which niri starts on demand and which sets DISPLAY.
+// Without it DISPLAY is unset and those clients simply fail to launch —
+// Minecraft 1.8.9 among them, since LWJGL 2 has no Wayland backend.
+// The binary comes from configuration.nix, so no path is needed here.
+xwayland-satellite
+
 input {
     keyboard {
         xkb {

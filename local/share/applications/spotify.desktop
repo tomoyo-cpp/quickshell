@@ -1,0 +1,20 @@
+[Desktop Entry]
+# Overrides the system entry from the spotify package. XDG_DATA_HOME wins over
+# /run/current-system/sw/share, so fuzzel, the bar and xdg-open all resolve to
+# this file and launch the spicetify-patched copy instead of the store build.
+#
+# Generated alongside ~/.local/bin/spotify-sync. If Spotify ever starts
+# unthemed, this file is the first thing to check — an unpatched launch means
+# something resolved `spotify` on PATH rather than this Exec line.
+Type=Application
+Name=Spotify
+GenericName=Music Player
+Icon=spotify-client
+TryExec=/home/tomoyo/.local/share/spicetify-spotify/spotify
+Exec=/home/tomoyo/.local/share/spicetify-spotify/spotify %U
+Terminal=false
+MimeType=x-scheme-handler/spotify;
+Categories=Audio;Music;Player;AudioVideo;
+# Unchanged from the system entry: the bar matches windows on this, and so do
+# any niri window rules.
+StartupWMClass=spotify

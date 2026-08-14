@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Launch PrismLauncher with the machine actually configured for it.
+#
+# Two things this handles that are easy to forget:
+#
+#   Power profile.  This laptop sits in power-saver, which caps turbo and
+#                   clocks the iGPU down. On a 15W i5-5300U that costs more
+#                   frames than any in-game setting will win back. Switched
+#                   to performance for the session and put back afterwards,
+#                   including if the launcher crashes or is killed.
+#
+#   DISPLAY.        Minecraft 1.8.9 uses LWJGL 2, which has no Wayland
+#                   backend. niri hands X11 clients to xwayland-satellite,
+#                   but only once it has been restarted with the
+#                   xwayland-satellite block in config.kdl — so if DISPLAY
+#                   is missing, start one rather than failing to launch.
+
+set -euo pipefail
+
+# ── Power profile ────────────────────────────────────────────────────────
+PREV=""
+if command -v powerprofilesctl >/dev/null 2>&1; then
+    PREV="$(powerprofilesctl get 2>/dev/null || true)"
+fi
+
+restore() {
+    [[ -n $PREV ]] && powerprofilesctl set "$PREV" >/dev/null 2>&1 || true
+}
+trap restore EXIT INT TERM
+
+if [[ -n $PREV && $PREV != performance ]]; then
+    powerprofilesctl set performance >/dev/null 2>&1 || true
+    echo "power profile: $PREV -> performance (restored on exit)"
+fi
+
+# ── X11 ──────────────────────────────────────────────────────────────────
+if [[ -z ${DISPLAY:-} ]]; then
+    if [[ -S /tmp/.X11-unix/X0 ]]; then
+        export DISPLAY=:0
+    elif command -v xwayland-satellite >/dev/null 2>&1; then
+        echo "no DISPLAY — starting xwayland-satellite"
+        systemd-run --user --collect --unit=xwayland-satellite-manual \
+            xwayland-satellite >/dev/null 2>&1 || true
+        for _ in {1..20}; do
+            [[ -S /tmp/.X11-unix/X0 ]] && break
+            sleep 0.25
+        done
+        export DISPLAY=:0
+    else
+        echo "warning: no DISPLAY and no xwayland-satellite; 1.8.9 will not start" >&2
+    fi
+fi
+
+# Not exec'd on purpose — the trap has to run after the launcher exits.
+prismlauncher "$@"
