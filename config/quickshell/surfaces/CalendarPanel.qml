@@ -44,7 +44,13 @@ PanelShell {
         id: clock
         // Seconds only while the panel is on screen — otherwise this wakes the
         // shell once a second to drive a clock nobody is looking at.
-        precision: root.open ? SystemClock.Seconds : SystemClock.Minutes
+        //
+        // Keyed to `visible` rather than `open`: the panel stays on screen for
+        // the length of its close animation, and dropping to Minutes the
+        // instant `open` went false truncated the clock to :00 in full view of
+        // the user, so the seconds appeared to snap to zero on the way out.
+        // PanelShell holds `visible` true until the animation finishes.
+        precision: root.visible ? SystemClock.Seconds : SystemClock.Minutes
     }
 
     Column {
