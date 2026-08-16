@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Volume control that accounts for the equalizer sink.
 #
-#   volume up | down | mute | set <0..150> | status
+#   volume up | down | mute | set <0..100> | status
 #
 # The default sink is `effect_input.eq10`, the PipeWire filter chain declared
 # in configuration.nix. Audio therefore crosses two volume stages:
@@ -26,7 +26,7 @@
 set -euo pipefail
 
 STEP=0.1
-MAX=1.5          # above 1.0 is software gain — Bluetooth headsets often need it
+MAX=1.0          # hard ceiling: no software gain above 100%
 
 # IDs of every Audio/Sink that is not the current default.
 downstream_ids() {
@@ -79,7 +79,7 @@ case "${1:-status}" in
     set)
         unity_downstream
         wpctl set-volume @DEFAULT_AUDIO_SINK@ \
-            "$(awk -v p="${2:?usage: volume set <0-150>}" 'BEGIN { printf "%.2f", p / 100 }')" -l "$MAX"
+            "$(awk -v p="${2:?usage: volume set <0-100>}" 'BEGIN { printf "%.2f", p / 100 }')" -l "$MAX"
         ;;
     status)
         unity_downstream
@@ -90,7 +90,7 @@ case "${1:-status}" in
         done < <(downstream_ids)
         ;;
     *)
-        echo "usage: volume up|down|mute|set <0-150>|status" >&2
+        echo "usage: volume up|down|mute|set <0-100>|status" >&2
         exit 2
         ;;
 esac
