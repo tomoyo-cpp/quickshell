@@ -9,7 +9,7 @@
 #     awww img /path/to/new.png                                   # sharp, behind windows
 #     magick /path/to/new.png -blur 0x8 ~/.cache/awww-wallpaper-blurred.png
 #     awww img --namespace backdrop ~/.cache/awww-wallpaper-blurred.png   # blurred backdrop
-WALLPAPER="/home/tomoyo/Pictures/Wallpapers/nix-dracula.png"
+WALLPAPER="/home/tomoyo/Pictures/Wallpapers/evening_sky.png"
 
 # Blur strength (the "sigma" in ImageMagick's -blur 0x<sigma>).
 # Higher = blurrier. Rough guide: 4 = subtle, 8 = medium, 20 = heavy, 0 = off.

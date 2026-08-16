@@ -9,6 +9,16 @@ PanelWindow {
 
     property int cardWidth: 380
 
+    // Smallest gap the cards keep from the screen edges.
+    //
+    // The side margins used to be the bar's own, so an inset bar and its
+    // toasts lined up along the same edge. That falls apart with an
+    // edge-to-edge bar (barSideMargin 0), where "aligned with the bar" means
+    // flush against the screen and reads as a rendering fault rather than a
+    // choice. Taken as a floor below, so the alignment still holds whenever
+    // the bar is inset at least this far.
+    readonly property int edgeGap: 16
+
     // Critical notifications are shown even with toasts off or DND on: the
     // whole point of the battery alert is that it cannot be missed.
     readonly property bool anyCritical: Notifs.popups.some(n => n.urgency === NotificationUrgency.Critical)
@@ -35,10 +45,10 @@ PanelWindow {
     }
 
     margins {
-        // 16px clear of the bar's bottom edge.
-        top: Theme.barMargin + Theme.barHeight + 16
-        right: Theme.barSideMarginRight
-        left: Theme.barSideMargin
+        // Clear of the bar's bottom edge, and of the screen's sides.
+        top: Theme.barMargin + Theme.barHeight + root.edgeGap
+        right: Math.max(Theme.barSideMarginRight, root.edgeGap)
+        left: Math.max(Theme.barSideMargin, root.edgeGap)
     }
 
     // Only the cards themselves should catch clicks.
