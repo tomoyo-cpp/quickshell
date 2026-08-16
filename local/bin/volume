@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Volume control that accounts for the equalizer sink.
+#
+#   volume up | down | mute | set <0..150> | status
+#
+# The default sink is `effect_input.eq10`, the PipeWire filter chain declared
+# in configuration.nix. Audio therefore crosses two volume stages:
+#
+#     app -> effect_input.eq10 [A] -> effect_output.eq10 -> Y07 / built-in [B]
+#
+# and what you hear is A x B. The volume keys only ever moved A, so whatever B
+# happened to be became an invisible ceiling: a Bluetooth headset that came
+# back from a reconnect at 0.62 capped output at 62% however far the keys were
+# pushed, with nothing in the UI to explain why.
+#
+# So make exactly one stage matter. Every Audio/Sink that is not the default
+# gets pinned to unity, leaving A alone to decide the level. Re-checked before
+# each adjustment rather than once at login, because Bluetooth devices
+# re-announce their volume on reconnect and AVRCP absolute volume can push a
+# new value at any moment.
+#
+# Sinks are read from pw-dump rather than `wpctl status`: the default marker
+# lives in the Filters section there, not Sinks, and parsing box-drawing
+# characters to find it is not worth doing.
+
+set -euo pipefail
+
+STEP=0.1
+MAX=1.5          # above 1.0 is software gain — Bluetooth headsets often need it
+
+# IDs of every Audio/Sink that is not the current default.
+downstream_ids() {
+    pw-dump 2>/dev/null | python3 -c '
+import json, sys
+try:
+    objs = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+
+default = None
+for o in objs:
+    if o.get("type", "").endswith("Metadata"):
+        for m in o.get("metadata") or []:
+            if m.get("key") == "default.audio.sink":
+                v = m.get("value")
+                default = v.get("name") if isinstance(v, dict) else v
+
+for o in objs:
+    props = (o.get("info") or {}).get("props") or {}
+    if props.get("media.class") == "Audio/Sink" and props.get("node.name") != default:
+        print(o["id"])
+'
+}
+
+unity_downstream() {
+    local id vol
+    while read -r id; do
+        [[ -n $id ]] || continue
+        vol=$(wpctl get-volume "$id" 2>/dev/null | awk '{print $2}') || continue
+        # Only touch sinks that are actually attenuating.
+        if awk -v v="${vol:-1}" 'BEGIN { exit !(v < 0.999) }'; then
+            wpctl set-volume "$id" 1.0 2>/dev/null || true
+        fi
+    done < <(downstream_ids)
+}
+
+case "${1:-status}" in
+    up)
+        unity_downstream
+        wpctl set-volume @DEFAULT_AUDIO_SINK@ "${STEP}+" -l "$MAX"
+        ;;
+    down)
+        unity_downstream
+        wpctl set-volume @DEFAULT_AUDIO_SINK@ "${STEP}-"
+        ;;
+    mute)
+        wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+        ;;
+    set)
+        unity_downstream
+        wpctl set-volume @DEFAULT_AUDIO_SINK@ \
+            "$(awk -v p="${2:?usage: volume set <0-150>}" 'BEGIN { printf "%.2f", p / 100 }')" -l "$MAX"
+        ;;
+    status)
+        unity_downstream
+        echo "default: $(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)"
+        while read -r id; do
+            [[ -n $id ]] || continue
+            echo "  sink $id: $(wpctl get-volume "$id" 2>/dev/null)"
+        done < <(downstream_ids)
+        ;;
+    *)
+        echo "usage: volume up|down|mute|set <0-150>|status" >&2
+        exit 2
+        ;;
+esac
