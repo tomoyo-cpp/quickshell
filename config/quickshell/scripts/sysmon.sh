@@ -46,8 +46,13 @@ first=1
 
 while :; do
     # ── CPU ──────────────────────────────────────────────────────────────
+    # /proc/stat's first line is: cpu user nice system idle iowait irq ...
+    # Splitting it into positional parameters is the point, so the word
+    # splitting here is deliberate rather than an oversight. This is /bin/sh,
+    # so there are no arrays to read it into instead.
+    # shellcheck disable=SC2046
     set -- $(head -n1 /proc/stat)
-    shift
+    shift          # drop the "cpu" label, leaving $1=user $2=nice $3=system
     idle=$4
     total=0
     for field in "$@"; do

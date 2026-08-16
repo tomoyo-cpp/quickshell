@@ -212,8 +212,6 @@ Singleton {
     // outlines round their bottom corners with this; toasts and the preview
     // stop card use it on all four.
     readonly property int popupRadius: Settings.panelRadius
-    readonly property int popupPadding: 14
-    readonly property int popupBorder: 1
 
     // Scales a base duration by the user's multiplier, and collapses to 0 when
     // animations are switched off. Called from `duration:` bindings, which
@@ -262,8 +260,6 @@ Singleton {
     readonly property color panelBg: Qt.rgba(crust.r, crust.g, crust.b, Settings.panelOpacity)
     readonly property color containerBg: Qt.rgba(surface0.r, surface0.g, surface0.b, Settings.containerOpacity)
     readonly property color pillBgHover: Qt.rgba(surface1.r, surface1.g, surface1.b, 0.85)
-
-    readonly property color borderColor: Qt.rgba(surface0.r, surface0.g, surface0.b, 0.9)
 
     // Alpha helper — Theme.alpha(Theme.blue, 0.2)
     function alpha(c, a) {

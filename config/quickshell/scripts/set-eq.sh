@@ -17,7 +17,10 @@ id=$(pw-cli ls Node 2>/dev/null |
 params=""
 for i in $(seq 1 10); do
     [ -n "$params" ] && params="$params, "
-    params="$params\"eq_band_$i:Gain\" $(eval echo \${$i})"
+    # ${!i} is bash's indirect expansion: the i'th positional argument, i.e.
+    # the gain for this band. Previously `eval echo \${$i}`, which forked a
+    # subshell per band and ran eval on it for no gain in clarity.
+    params="$params\"eq_band_$i:Gain\" ${!i}"
 done
 
 pw-cli s "$id" Props "{ params = [ $params ] }" >/dev/null
