@@ -222,41 +222,38 @@
     wlsunset        # night light (dashboard toggle)
     # Terminal
     kitty
-    # Visual — eye candy, and what the bar's preview.sh tour puts on screen
+    # Visual
     fastfetch cbonsai
-    cmatrix         # matrix rain      \
-    pipes-rs        # animated pipes    } used by scripts/preview.sh
-    asciiquarium    # fish tank        /
-    tty-clock       # oversized clock
-    peaclock        # clock / timer / stopwatch, themeable
+    cmatrix
+    pipes-rs        
+    asciiquarium 
+    tty-clock
+    peaclock
     nyancat
     sl              # steam locomotive, for mistyping ls
     lolcat          # rainbow pipe: `fastfetch | lolcat`
     figlet          # ascii banners: `figlet hello | lolcat`
-    chafa           # images as terminal graphics: `chafa pic.png`
-    # Good-looking TUIs that are also useful
-    gping           # ping, as a live graph
-    dust            # disk usage, as a tree
-    duf             # df with colour and bars
-    procs           # ps with colour, tree view and search
-    glow            # markdown, rendered
+    chafa           # images as terminal graphics
+    cava
+    # TUIs
+    btop
+    gping
+    dust
+    duf
+    glow
     # Programs
     firefox librewolf spotify gimp claude-code
     # Spotify theming. spicetify has to rewrite Apps/xpui.spa inside the
     # Spotify install, which is a read-only store path — so ~/.local/bin/
     # spotify-sync builds a writable copy of the app and patches that instead.
     spicetify-cli
-    # Minecraft. PrismLauncher manages instances and mod loaders itself;
-    # Forge 1.8.9 — which is what Hypixel SkyBlock's mod ecosystem targets —
-    # needs Java 8 specifically, so it is pinned here rather than left to
-    # whatever JDK happens to be on PATH.
     prismlauncher
     temurin-jre-bin-8
-    blender         # 3D suite (Catppuccin Mocha theme in ~/.config/blender)
-    obs-studio      # screen capture via the PipeWire portal on Wayland
+    blender
+    obs-studio
     wl-screenrec    # wlr-screencopy -> VA-API, near-zero CPU vs OBS + x264
-    libva-utils     # vainfo, for checking what the GPU offers
-    ffmpeg          # muxing, trimming, and a VA-API fallback path
+    libva-utils
+    ffmpeg
     # VPN
     mullvad-vpn
     # File management
@@ -277,7 +274,6 @@
     font-awesome
     # Misc
     brightnessctl playerctl pamixer
-    cava            # FFT audio bars, feeding the shell's visualisers
     networkmanagerapplet
     libnotify
     # Polkit
@@ -285,7 +281,6 @@
     # Additional
     hyprpicker
     starship        # prompt
-    btop            # system monitor
     wlogout         # power menu
     # One build per flavour, so the bar's Appearance tab can switch GTK apps
     # to match. A single catppuccin-gtk only ever ships one variant, which is
