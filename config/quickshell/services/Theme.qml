@@ -193,8 +193,6 @@ Singleton {
     // Room reserved around the bar strip for its drop shadow.
     readonly property int shadowPad: 12
 
-    readonly property bool atBottom: Settings.barPosition === "bottom"
-
     readonly property int containerInset: Settings.containerInset
     readonly property int containerHeight: barHeight - containerInset * 2
     readonly property int containerRadius: Settings.containerRadius

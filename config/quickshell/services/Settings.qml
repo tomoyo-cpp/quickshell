@@ -87,10 +87,6 @@ Singleton {
     property real shadowOpacity: 0.45
     property real shadowBlur: 0.7
 
-    // ── Layout ───────────────────────────────────────────────────────────
-    // top | bottom
-    property string barPosition: "top"
-
     // ── Clock ────────────────────────────────────────────────────────────
     property bool clockUse24h: true
     property bool clockShowSeconds: false
@@ -172,7 +168,6 @@ Singleton {
             theming: ["themeGtk", "themeSwaylock", "themeTerminal", "terminalOpacity", "themeSpotify"],
             windows: ["themeWindows", "windowBorderWidth", "windowRadius", "windowGaps"],
             cursor: ["cursorTheme", "cursorSize"],
-            layout: ["barPosition"],
             clock: ["clockUse24h", "clockShowSeconds", "clockShowDate", "clockFormat"],
             media: ["mediaMaxWidth", "mediaScrollSpeed", "mediaShowArtist", "showVisualiser", "visualiserOpacity", "visualiserBarWidth"],
             battery: ["batteryLow", "batteryMid", "batteryHigh", "batteryFlash", "batteryShowPercent", "batteryAlerts"],

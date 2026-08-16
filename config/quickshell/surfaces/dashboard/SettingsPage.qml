@@ -168,7 +168,7 @@ DashPage {
                         onMoved: v => Settings.set("barHeight", v)
                     }
                     Setting {
-                        label: Theme.atBottom ? "Bottom margin" : "Top margin"
+                        label: "Top margin"
                         value: Settings.barMargin
                         from: 0
                         to: 24
