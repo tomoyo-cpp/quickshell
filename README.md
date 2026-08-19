@@ -16,7 +16,7 @@ Catppuccin across the whole system, driven from one settings panel.
 
 A scrolling-compositor desktop built around a custom shell — not a Waybar config
 with extra CSS. The bar, launcher, dashboard, notification toasts, OSD, clipboard
-manager and media player are ~15,000 lines of QML across 89 files, talking to niri
+manager and media player are ~15,000 lines of QML across 90 files, talking to niri
 over IPC and to the system over MPRIS, D-Bus, PipeWire and cliphist.
 
 The part worth stealing is the theming. Pick an accent in the Appearance tab and it
@@ -66,7 +66,7 @@ equalizer.
 
 ## The shell
 
-Lives in [`config/quickshell`](config/quickshell) — 89 QML files, 26 services.
+Lives in [`config/quickshell`](config/quickshell) — 90 QML files, 26 services.
 
 **Bar.** Left cluster (launcher, search, settings, notifications) · CPU and memory ·
 media pill with a scrolling marquee · workspace capsules with app icons · clock ·
@@ -200,7 +200,11 @@ config/         everything under ~/.config
   kitty/ fish/ yazi/ cava/ btop/ wlogout/ mako/ fastfetch/ starship.toml
   glow/ Thunar/ obs-studio/ mimeapps.list
   vscode/         settings.json, keybindings.json, snippets -> Code/User/
-local/bin/      spotify-sync, spotify-theme, spotify-cdp     -> ~/.local/bin
+local/
+  bin/            spotify-sync, spotify-theme, spotify-cdp,      -> ~/.local/bin
+                  volume, minecraft
+  share/          desktop entries that override the packaged ones
+    applications/                                                -> ~/.local/share/applications
 assets/         screenshots
 ```
 
@@ -234,5 +238,13 @@ NixOS link needs root, so it prints the two commands instead of running them.
   yours to set.
 - **OBS is tracked except its websocket config**, which stores a server password
   in plain text.
+- **The volume keys go through [`local/bin/volume`](local/bin/volume), not
+  `wpctl` directly.** The equalizer in `configuration.nix` is a filter-chain
+  sink, and making it the default puts two volume stages in series — what you
+  hear is the filter's level times the real device's. Moving only the first
+  leaves the second as a ceiling you cannot see: a Bluetooth headset that
+  reconnected at 62% capped output there however far the keys were pushed. The
+  script pins every non-default sink to unity so one stage decides the level.
+  Copy the equalizer without it and you inherit the bug.
 - The wallpaper path is hardcoded in
   [`config/niri/start-awww.sh`](config/niri/start-awww.sh).
