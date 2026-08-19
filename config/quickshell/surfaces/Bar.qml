@@ -249,7 +249,6 @@ PanelWindow {
     }
 
     // Geometry of whichever surface is open, in screen coordinates.
-    readonly property bool anyOpen: bar.openPopup !== ""
     readonly property int openLeft: {
         if (bar.openPopup === "dashboard")
             return dashboard.panelLeft;

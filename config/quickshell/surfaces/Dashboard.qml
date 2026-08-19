@@ -82,12 +82,9 @@ PanelWindow {
 
     // ── Audio ────────────────────────────────────────────────────────────
     readonly property PwNode sink: Pipewire.defaultAudioSink
-    readonly property PwNode source: Pipewire.defaultAudioSource
     readonly property var sinkAudio: sink ? sink.audio : null
-    readonly property var sourceAudio: source ? source.audio : null
     readonly property int volume: sinkAudio ? Math.round(sinkAudio.volume * 100) : 0
     readonly property bool muted: sinkAudio ? sinkAudio.muted : true
-    readonly property bool micMuted: sourceAudio ? sourceAudio.muted : true
 
     // ── Battery ──────────────────────────────────────────────────────────
     readonly property var battery: UPower.displayDevice
@@ -408,7 +405,7 @@ PanelWindow {
     }
 
     PwObjectTracker {
-        objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
+        objects: [Pipewire.defaultAudioSink]
     }
 
     // Only monitored while the media page is open — it is a live audio tap.

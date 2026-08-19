@@ -18,10 +18,6 @@ Singleton {
 
     readonly property var keys: Settings.keyGroups.appearance
 
-    function names() {
-        return root.presets.map(p => p.name);
-    }
-
     function find(name) {
         return root.presets.find(p => p.name === name) ?? null;
     }

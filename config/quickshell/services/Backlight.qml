@@ -29,10 +29,6 @@ Singleton {
         setProc.exec(["brightnessctl", "-q", "set", `${v}%`]);
     }
 
-    function step(delta) {
-        set(root.percent + delta);
-    }
-
     Process {
         id: setProc
     }

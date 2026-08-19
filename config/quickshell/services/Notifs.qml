@@ -72,13 +72,6 @@ Singleton {
         root.popups = root.popups.filter(p => p !== n);
     }
 
-    function dismissAllPopups() {
-        for (const p of root.popups)
-            if (p.tracked)
-                p.tracked = false;
-        root.popups = [];
-    }
-
     // The image worth showing full-width, if any.
     //
     // niri hands the screenshot's path in the notification's app_icon field
