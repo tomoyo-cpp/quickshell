@@ -48,6 +48,7 @@ MarqueeText 1.0 components/MarqueeText.qml
 MiniBar 1.0 components/MiniBar.qml
 ModChip 1.0 components/ModChip.qml
 Pct 1.0 components/Pct.qml
+PanelOutline 1.0 components/PanelOutline.qml
 Pill 1.0 components/Pill.qml
 PresetsCol 1.0 components/PresetsCol.qml
 PreviewCol 1.0 components/PreviewCol.qml

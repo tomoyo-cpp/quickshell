@@ -1,12 +1,4 @@
 import QtQuick
-import QtQuick.Effects
-import QtQuick.Shapes
-import Quickshell
-import Quickshell.Widgets
-import Quickshell.Io
-import Quickshell.Services.Pipewire
-import Quickshell.Services.UPower
-import Quickshell.Services.Mpris
 import "root:/"
 
 DashPage {

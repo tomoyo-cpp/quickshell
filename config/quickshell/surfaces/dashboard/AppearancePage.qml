@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell
 import "root:/"
 
 // Appearance: the look of the bar, and how far that look is pushed out into
