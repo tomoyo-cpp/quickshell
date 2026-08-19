@@ -24,6 +24,9 @@ Shape {
     required property real smoothHeight
     // 0 while closed, 1 when fully open. Drives the reveal.
     required property real reveal
+    // Extra height folded in below, for a panel that overlaps the bar instead
+    // of meeting its bottom edge. The dropdowns sit flush and leave this at 0.
+    property real joinOverlap: 0
 
     preferredRendererType: Shape.CurveRenderer
 
@@ -33,7 +36,7 @@ Shape {
     // Interpolated from the minimum, not clamped to it: the clamp pinned h
     // flat and then released it at the curve's steepest point, which showed
     // as a kink partway through.
-    readonly property real h: outlineShape.minH + Math.max(0, outlineShape.smoothHeight - outlineShape.minH) * outlineShape.reveal
+    readonly property real h: outlineShape.joinOverlap + outlineShape.minH + Math.max(0, outlineShape.smoothHeight - outlineShape.minH) * outlineShape.reveal
     readonly property int r: Theme.popupRadius
 
     ShapePath {

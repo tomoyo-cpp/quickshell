@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Networking
@@ -423,86 +422,13 @@ PanelWindow {
     // Drawn directly rather than through a MultiEffect: MultiEffect renders a
     // shadow for a Shape source but never its fill, layered or not. The bar
     // strip is a plain Rectangle, so it keeps its drop shadow.
-    Shape {
-        id: outlineShape
+    PanelOutline {
         anchors.fill: panel
-        preferredRendererType: Shape.CurveRenderer
-
-        readonly property int n: root.notch
-        readonly property int w: root.bodyWidth
-        readonly property real minH: root.notch + Theme.popupRadius + 1
-        readonly property real h: root.joinOverlap + outlineShape.minH + Math.max(0, root.smoothHeight - outlineShape.minH) * root.reveal
-        readonly property int r: Theme.popupRadius
-
-        ShapePath {
-            id: outline
-            fillColor: Theme.panelBg
-            strokeWidth: 0
-            strokeColor: "transparent"
-
-            // ShapePath is not an Item, so `parent` does not resolve here.
-            readonly property int n: outlineShape.n
-            readonly property int w: outlineShape.w
-            readonly property real h: outlineShape.h
-            readonly property int r: outlineShape.r
-
-            startX: 0
-            startY: 0
-
-            // Concave fillet flaring out of the bar, top left.
-            PathArc {
-                x: outline.n
-                y: outline.n
-                radiusX: outline.n
-                radiusY: outline.n
-                direction: PathArc.Clockwise
-            }
-
-            PathLine {
-                x: outline.n
-                y: outline.h - outline.r
-            }
-
-            PathArc {
-                x: outline.n + outline.r
-                y: outline.h
-                radiusX: outline.r
-                radiusY: outline.r
-                direction: PathArc.Counterclockwise
-            }
-
-            PathLine {
-                x: outline.n + outline.w - outline.r
-                y: outline.h
-            }
-
-            PathArc {
-                x: outline.n + outline.w
-                y: outline.h - outline.r
-                radiusX: outline.r
-                radiusY: outline.r
-                direction: PathArc.Counterclockwise
-            }
-
-            PathLine {
-                x: outline.n + outline.w
-                y: outline.n
-            }
-
-            // Concave fillet, top right.
-            PathArc {
-                x: outline.n + outline.w + outline.n
-                y: 0
-                radiusX: outline.n
-                radiusY: outline.n
-                direction: PathArc.Clockwise
-            }
-
-            PathLine {
-                x: 0
-                y: 0
-            }
-        }
+        notch: root.notch
+        bodyWidth: root.bodyWidth
+        smoothHeight: root.smoothHeight
+        reveal: root.reveal
+        joinOverlap: root.joinOverlap
     }
 
     // ── Contents ─────────────────────────────────────────────────────────
