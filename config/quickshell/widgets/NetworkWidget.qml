@@ -9,7 +9,6 @@ Pill {
 
     required property var bar
 
-
     readonly property var wifiDevice: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
     readonly property var wiredDevice: Networking.devices.values.find(d => d.type === DeviceType.Wired) ?? null
 
@@ -49,7 +48,6 @@ Pill {
     innerSpacing: 7
 
     onClicked: bar.togglePopup("network")
-
 
     Glyph {
         text: root.wifiGlyph

@@ -170,7 +170,6 @@ PanelWindow {
         return Theme.green;
     }
 
-
     // The Widgets tab carries three columns, the rest two. Column width is
     // derived from that rather than fixed, or three 250px columns overflow the
     // 700px panel and clip at both edges.
@@ -202,13 +201,11 @@ PanelWindow {
         root.modShift = false;
     }
 
-
     readonly property bool anyCapture: root.capturing !== null || root.capturingNew
 
     KeyCapture {
         id: keyCapture
     }
-
 
     // KDL actions read like config; strip the syntax for display.
     function prettyAction(a) {
@@ -274,7 +271,6 @@ PanelWindow {
             event.accepted = true;
         }
     }
-
 
     readonly property var tabs: [
         {
@@ -511,7 +507,6 @@ PanelWindow {
         }
     }
 
-
     // ── Contents ─────────────────────────────────────────────────────────
     Item {
         x: root.notch
@@ -606,8 +601,6 @@ PanelWindow {
                 width: parent.width
                 height: parent.height - y
 
-
-
                 // ── System ───────────────────────────────────────────────
                 SystemPage {
                     dash: root
@@ -652,27 +645,5 @@ PanelWindow {
         repeat: true
         onTriggered: root.player.positionChanged()
     }
-
-    // ── Reusable parts ───────────────────────────────────────────────────
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 }

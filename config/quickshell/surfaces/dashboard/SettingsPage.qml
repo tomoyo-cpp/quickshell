@@ -87,7 +87,6 @@ DashPage {
     readonly property int settingsCols: page.settingsTab === 3 ? 1 : page.settingsTab === 1 ? 3 : 2
     readonly property int settingsColWidth: Math.floor((page.dash.bodyWidth - 36 - 14 - (page.settingsCols - 1) * 22) / page.settingsCols)
 
-
     Column {
         anchors.fill: parent
         spacing: 10
@@ -149,9 +148,6 @@ DashPage {
                 id: sheet
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 22
-
-                // ── Appearance ───────────────────────────
-
 
                 // ── Layout ───────────────────────────────
                 SettingsCol {

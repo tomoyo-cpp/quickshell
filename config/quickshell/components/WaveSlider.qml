@@ -16,9 +16,7 @@ Item {
 
     readonly property real clamped: Math.max(0, Math.min(1, value))
 
-
     implicitHeight: 34
-
 
     readonly property int sampleCount: 160
 

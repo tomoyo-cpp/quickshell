@@ -12,8 +12,6 @@ import "root:/"
 DashPage {
     id: page
 
-
-
     Row {
         anchors.fill: parent
         spacing: 16

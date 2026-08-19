@@ -23,7 +23,6 @@ Item {
     property real circleRadius: 0
     readonly property bool circular: circleRadius > 0
 
-
     readonly property int count: values ? values.length : 0
 
     // Vertical band the data is mapped into, inset from the ring.
