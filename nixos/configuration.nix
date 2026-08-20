@@ -297,6 +297,7 @@
       spotify
       gimp
       claude-code
+      discord
       # Spotify theming. spicetify has to rewrite Apps/xpui.spa inside the
       # Spotify install, which is a read-only store path — so ~/.local/bin/
       # spotify-sync builds a writable copy of the app and patches that instead.
