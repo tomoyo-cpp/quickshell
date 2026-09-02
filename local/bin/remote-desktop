@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Serve this niri session over VNC.
+#
+#   remote-desktop            listen on the tailnet address (default)
+#   remote-desktop --lan      listen on the LAN address instead
+#   remote-desktop --stop     stop serving
+#
+# wayvnc works here because niri advertises the three protocols it needs:
+# zwlr_screencopy_manager_v1 to capture, and zwp_virtual_keyboard_manager_v1
+# plus zwlr_virtual_pointer_manager_v1 to inject input. Injected keys arrive
+# as ordinary keysyms, so Super lands on niri's binds exactly as a local press
+# would — which is the whole point of using this rather than an X11 bridge.
+#
+# Security: wayvnc offers RFB security type "None". That is deliberate but only
+# safe because of where it listens. The tailnet is WireGuard — authenticated
+# per device and encrypted — and the firewall opens 5900 on tailscale0 alone,
+# so nothing on the LAN or the internet can reach it. --lan drops that
+# protection and is for a trusted network only.
+
+set -euo pipefail
+
+PORT=5900
+UNIT=wayvnc
+
+case "${1:-}" in
+    --stop)
+        systemctl --user stop "$UNIT.service" 2>/dev/null || true
+        echo "stopped"
+        exit 0
+        ;;
+    --lan)
+        ADDR=$(ip -4 -o addr show scope global 2>/dev/null |
+               awk '$2 !~ /^(tailscale|lo)/ { split($4, a, "/"); print a[1]; exit }')
+        [[ -n ${ADDR:-} ]] || { echo "no LAN address found" >&2; exit 1; }
+        # configuration.nix opens 5900 on tailscale0 only, so binding to the
+        # LAN address succeeds while the firewall still drops the traffic.
+        # Say so rather than reporting a listener nothing can reach.
+        cat >&2 <<'WARN'
+warning: serving on the LAN with no VNC authentication, and the firewall
+         currently permits 5900 on tailscale0 only. To reach it from the LAN,
+         add to configuration.nix and rebuild:
+
+           networking.firewall.allowedTCPPorts = [ 5900 ];
+
+         That exposes an unauthenticated VNC server to your whole network.
+         The tailnet path is the better answer.
+WARN
+        ;;
+    ""|--tailscale)
+        ADDR=$(tailscale ip -4 2>/dev/null | head -1 || true)
+        if [[ -z ${ADDR:-} ]]; then
+            echo "tailscale is not up — run 'sudo tailscale up' first," >&2
+            echo "or use 'remote-desktop --lan' on a trusted network." >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "usage: remote-desktop [--lan|--stop]" >&2
+        exit 2
+        ;;
+esac
+
+systemctl --user stop "$UNIT.service" 2>/dev/null || true
+systemd-run --user --collect --unit="$UNIT" wayvnc "$ADDR" "$PORT" >/dev/null
+
+# Report only once it is actually accepting connections, so a failure to bind
+# is not mistaken for success.
+for _ in {1..20}; do
+    ss -ltn "sport = :$PORT" 2>/dev/null | grep -q "$ADDR" && break
+    sleep 0.25
+done
+
+if ss -ltn "sport = :$PORT" 2>/dev/null | grep -q "$ADDR"; then
+    echo "serving this session at $ADDR:$PORT"
+    echo "connect with a VNC client, and turn on its"
+    echo "'pass special keys directly to server' option so Super reaches niri."
+else
+    echo "wayvnc did not bind — check: journalctl --user -u $UNIT -n 20" >&2
+    exit 1
+fi

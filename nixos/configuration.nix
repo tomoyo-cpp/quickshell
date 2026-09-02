@@ -192,6 +192,19 @@
   # ~/.local/bin on PATH, for the spotify-sync / spotify-theme helpers.
   environment.localBinInPath = true;
 
+  # ── Remote desktop ──────────────────────────────────────────────────────
+  # wayvnc captures through zwlr_screencopy and injects input through
+  # zwp_virtual_keyboard + zwlr_virtual_pointer — all three of which niri
+  # advertises, which is what makes this work at all. Injected keys arrive as
+  # ordinary keysyms, so Super reaches niri's binds like a local press would.
+  #
+  # Reachable over Tailscale only. wayvnc binds to the tailnet address and the
+  # firewall opens 5900 on that interface alone, so the port is never exposed
+  # to the LAN or the internet — Tailscale already authenticates and encrypts,
+  # which is a far better story than VNC's own password.
+  services.tailscale.enable = true;
+  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 5900 ];
+
   # ── System packages ─────────────────────────────────────────────────────
   environment.systemPackages =
     with pkgs;
@@ -298,6 +311,7 @@
       gimp
       claude-code
       discord
+      wayvnc # VNC server for wlroots-style compositors; see the Remote block
       # Spotify theming. spicetify has to rewrite Apps/xpui.spa inside the
       # Spotify install, which is a read-only store path — so ~/.local/bin/
       # spotify-sync builds a writable copy of the app and patches that instead.
