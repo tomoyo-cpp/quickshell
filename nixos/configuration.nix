@@ -179,6 +179,7 @@
       "video"
       "audio"
       "input"
+      "uinput" # /dev/uinput, for wl-uinput-proxy
     ];
     shell = pkgs.fish;
   };
@@ -209,6 +210,11 @@
   # which is a far better story than VNC's own password.
   services.tailscale.enable = true;
   networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 5900 ];
+
+  # Creates the uinput group and the udev rule that makes /dev/uinput
+  # group-writable; without it the proxy cannot open the device and falls back
+  # to the virtual protocols, which is the behaviour it exists to avoid.
+  hardware.uinput.enable = true;
 
   # ── System packages ─────────────────────────────────────────────────────
   environment.systemPackages =
@@ -317,6 +323,7 @@
       claude-code
       discord
       wayvnc # VNC server for wlroots-style compositors; see the Remote block
+      (pkgs.callPackage ./pkgs/wl-uinput-proxy.nix { })
       # Spotify theming. spicetify has to rewrite Apps/xpui.spa inside the
       # Spotify install, which is a read-only store path — so ~/.local/bin/
       # spotify-sync builds a writable copy of the app and patches that instead.

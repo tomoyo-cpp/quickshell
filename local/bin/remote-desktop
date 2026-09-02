@@ -61,12 +61,30 @@ WARN
 esac
 
 systemctl --user stop "$UNIT.service" 2>/dev/null || true
+# Two wrappers, both load-bearing.
+#
+# wl-uinput-proxy: niri does not run keybindings on zwp_virtual_keyboard
+# input — injected keys reach the focused window but never fire Mod+D. The
+# proxy re-implements the virtual keyboard and pointer on /dev/uinput, so the
+# compositor sees ordinary kernel events and binds behave as they do locally.
+#
+# sg uinput: /dev/uinput is group-writable, but a group added to the account
+# only reaches a session at login, and this session predates it. The setuid
+# wrapper grants it now instead of requiring a logout. Skipped once the
+# session already has the group.
+#
 # --render-cursor composites the pointer into the frame. niri does not
 # advertise ext_image_copy_capture_manager_v1, so wayvnc cannot send the
-# cursor as a separate VNC cursor object for the client to draw; without
-# this the remote screen has no visible pointer at all.
-systemd-run --user --collect --unit="$UNIT" \
-    wayvnc --render-cursor "$ADDR" "$PORT" >/dev/null
+# cursor as a separate object for the client to draw, and without this the
+# remote screen has no visible pointer at all.
+if id -nG | grep -qw uinput; then
+    systemd-run --user --collect --unit="$UNIT" \
+        wl-uinput-proxy wayvnc --render-cursor "$ADDR" "$PORT" >/dev/null
+else
+    systemd-run --user --collect --unit="$UNIT" \
+        /run/wrappers/bin/sg uinput -c \
+        "wl-uinput-proxy wayvnc --render-cursor $ADDR $PORT" >/dev/null
+fi
 
 # Report only once it is actually accepting connections, so a failure to bind
 # is not mistaken for success.
