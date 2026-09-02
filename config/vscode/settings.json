@@ -8,5 +8,6 @@
     "git.autofetch": true,
     "git.confirmSync": false,
     "claudeCode.preferredLocation": "panel",
-    "terminal.integrated.mouseWheelScrollSensitivity": 3
+    "terminal.integrated.mouseWheelScrollSensitivity": 3,
+    "claudeCode.focusView": true
 }
