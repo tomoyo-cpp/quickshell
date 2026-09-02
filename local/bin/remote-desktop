@@ -61,7 +61,12 @@ WARN
 esac
 
 systemctl --user stop "$UNIT.service" 2>/dev/null || true
-systemd-run --user --collect --unit="$UNIT" wayvnc "$ADDR" "$PORT" >/dev/null
+# --render-cursor composites the pointer into the frame. niri does not
+# advertise ext_image_copy_capture_manager_v1, so wayvnc cannot send the
+# cursor as a separate VNC cursor object for the client to draw; without
+# this the remote screen has no visible pointer at all.
+systemd-run --user --collect --unit="$UNIT" \
+    wayvnc --render-cursor "$ADDR" "$PORT" >/dev/null
 
 # Report only once it is actually accepting connections, so a failure to bind
 # is not mistaken for success.
