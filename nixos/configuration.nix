@@ -194,9 +194,14 @@
 
   # ── Remote desktop ──────────────────────────────────────────────────────
   # wayvnc captures through zwlr_screencopy and injects input through
-  # zwp_virtual_keyboard + zwlr_virtual_pointer — all three of which niri
-  # advertises, which is what makes this work at all. Injected keys arrive as
-  # ordinary keysyms, so Super reaches niri's binds like a local press would.
+  # zwp_virtual_keyboard + zwlr_virtual_pointer, all of which niri advertises.
+  #
+  # Caveat worth knowing before relying on this: niri does not run keybindings
+  # on virtual-keyboard input. Keys arrive correctly formed and reach the
+  # focused application, so typing and clicking work — but Mod+D and friends
+  # do nothing remotely, whatever modifier they are bound to. Making them work
+  # needs the input to arrive as real events, e.g. by routing wayvnc through
+  # uinput with wl-uinput-proxy.
   #
   # Reachable over Tailscale only. wayvnc binds to the tailnet address and the
   # firewall opens 5900 on that interface alone, so the port is never exposed
