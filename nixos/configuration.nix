@@ -193,16 +193,22 @@
   # ~/.local/bin on PATH, for the spotify-sync / spotify-theme helpers.
   environment.localBinInPath = true;
 
+  # ── Steam ───────────────────────────────────────────────────────────────
+  # The module rather than the bare package: it turns on 32-bit graphics
+  # (hardware.graphics.enable32Bit) and the controller udev rules
+  # (hardware.steam-hardware), neither of which the package alone provides,
+  # and both of which Steam is broken without.
+  programs.steam.enable = true;
+
   # ── Remote desktop ──────────────────────────────────────────────────────
   # wayvnc captures through zwlr_screencopy and injects input through
   # zwp_virtual_keyboard + zwlr_virtual_pointer, all of which niri advertises.
   #
-  # Caveat worth knowing before relying on this: niri does not run keybindings
-  # on virtual-keyboard input. Keys arrive correctly formed and reach the
-  # focused application, so typing and clicking work — but Mod+D and friends
-  # do nothing remotely, whatever modifier they are bound to. Making them work
-  # needs the input to arrive as real events, e.g. by routing wayvnc through
-  # uinput with wl-uinput-proxy.
+  # niri does not run keybindings on virtual-keyboard input: keys arrive
+  # correctly formed and reach the focused application, but Mod+D and friends
+  # do nothing, whatever modifier they are bound to. wl-uinput-proxy (below)
+  # is why they work anyway — it re-implements those protocols on /dev/uinput
+  # so the compositor sees ordinary kernel events.
   #
   # Reachable over Tailscale only. wayvnc binds to the tailnet address and the
   # firewall opens 5900 on that interface alone, so the port is never exposed
