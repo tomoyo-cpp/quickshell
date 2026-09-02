@@ -627,33 +627,39 @@ binds {
     // Windows hands the Super key to Explorer before any windowed app sees
     // it, so a VNC viewer can only forward it while it holds the keyboard
     // grab — which TigerVNC does in full screen and not otherwise. These
-    // mirror the binds worth having remotely onto Ctrl+Alt, the one
-    // combination Windows passes through to a windowed application
-    // untouched (Ctrl+Alt+Delete excepted, and that is already bound below).
+    // mirror the binds worth having remotely onto plain Alt.
+    //
+    // Ctrl+Alt was the first attempt and did not arrive: Windows reports
+    // AltGr to applications as Ctrl+Alt, so VNC clients fold the pair into
+    // ISO_Level3_Shift to keep international layouts working. Ctrl+Alt+D
+    // therefore reached niri as AltGr+D and matched nothing. Alt alone is
+    // not subject to that translation.
+    //
+    // Avoids Tab, Esc, F4 and Space, which Windows keeps for itself.
     //
     // Additive: every Mod+ bind still works exactly as before locally.
-    Ctrl+Alt+Return { spawn "kitty"; }                                     //remote-mirror
-    Ctrl+Alt+E { spawn "kitty" "yazi"; }                                   //remote-mirror
-    Ctrl+Alt+D { spawn-sh "qs ipc call bar toggle launcher"; }             //remote-mirror
-    Ctrl+Alt+A { spawn-sh "qs ipc call bar tab appearance"; }              //remote-mirror
-    Ctrl+Alt+P { spawn-sh "qs ipc call bar toggle media"; }                //remote-mirror
-    Ctrl+Alt+N { spawn-sh "qs ipc call bar toggle network"; }              //remote-mirror
-    Ctrl+Alt+Y { spawn-sh "qs ipc call bar toggle clipboard"; }            //remote-mirror
-    Ctrl+Alt+T { spawn-sh "qs ipc call bar toggle calendar"; }             //remote-mirror
-    Ctrl+Alt+O repeat=false { toggle-overview; }                           //remote-mirror
-    Ctrl+Alt+Q repeat=false { close-window; }                              //remote-mirror
-    Ctrl+Alt+H { focus-column-left; }                                      //remote-mirror
-    Ctrl+Alt+J { focus-window-down; }                                      //remote-mirror
-    Ctrl+Alt+K { focus-window-up; }                                        //remote-mirror
-    Ctrl+Alt+L { focus-column-right; }                                     //remote-mirror
-    Ctrl+Alt+F { maximize-column; }                                        //remote-mirror
-    Ctrl+Alt+C { center-column; }                                          //remote-mirror
-    Ctrl+Alt+V { toggle-window-floating; }                                 //remote-mirror
-    Ctrl+Alt+1 { focus-workspace 1; }                                      //remote-mirror
-    Ctrl+Alt+2 { focus-workspace 2; }                                      //remote-mirror
-    Ctrl+Alt+3 { focus-workspace 3; }                                      //remote-mirror
-    Ctrl+Alt+4 { focus-workspace 4; }                                      //remote-mirror
-    Ctrl+Alt+5 { focus-workspace 5; }                                      //remote-mirror
+    Alt+Return { spawn "kitty"; }                                     //remote-mirror
+    Alt+E { spawn "kitty" "yazi"; }                                   //remote-mirror
+    Alt+D { spawn-sh "qs ipc call bar toggle launcher"; }             //remote-mirror
+    Alt+A { spawn-sh "qs ipc call bar tab appearance"; }              //remote-mirror
+    Alt+P { spawn-sh "qs ipc call bar toggle media"; }                //remote-mirror
+    Alt+N { spawn-sh "qs ipc call bar toggle network"; }              //remote-mirror
+    Alt+Y { spawn-sh "qs ipc call bar toggle clipboard"; }            //remote-mirror
+    Alt+T { spawn-sh "qs ipc call bar toggle calendar"; }             //remote-mirror
+    Alt+O repeat=false { toggle-overview; }                           //remote-mirror
+    Alt+Q repeat=false { close-window; }                              //remote-mirror
+    Alt+H { focus-column-left; }                                      //remote-mirror
+    Alt+J { focus-window-down; }                                      //remote-mirror
+    Alt+K { focus-window-up; }                                        //remote-mirror
+    Alt+L { focus-column-right; }                                     //remote-mirror
+    Alt+F { maximize-column; }                                        //remote-mirror
+    Alt+C { center-column; }                                          //remote-mirror
+    Alt+V { toggle-window-floating; }                                 //remote-mirror
+    Alt+1 { focus-workspace 1; }                                      //remote-mirror
+    Alt+2 { focus-workspace 2; }                                      //remote-mirror
+    Alt+3 { focus-workspace 3; }                                      //remote-mirror
+    Alt+4 { focus-workspace 4; }                                      //remote-mirror
+    Alt+5 { focus-workspace 5; }                                      //remote-mirror
 }
 
 //qs-cursor
