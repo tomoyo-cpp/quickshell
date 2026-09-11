@@ -202,7 +202,7 @@ config/         everything under ~/.config
   vscode/         settings.json, keybindings.json, snippets -> Code/User/
 local/
   bin/            spotify-sync, spotify-theme, spotify-cdp,      -> ~/.local/bin
-                  volume, minecraft
+                  volume, minecraft, remote-desktop, audio-remote
   share/          desktop entries that override the packaged ones
     applications/                                                -> ~/.local/share/applications
 assets/         screenshots
@@ -220,6 +220,29 @@ in the way is moved to `<path>.backup-<timestamp>` rather than deleted. The
 NixOS link needs root, so it prints the two commands instead of running them.
 
 ---
+
+## Remote access
+
+`remote-desktop` serves this session over VNC on the tailnet; `audio-remote`
+streams its sound alongside, because RFB has no audio channel and no client
+setting can add one.
+
+| | |
+|---|---|
+| Picture | wayvnc, port 5900, tailnet only |
+| Sound | ffmpeg → MP3 over HTTP, port 8000, tailnet only |
+| Input | wl-uinput-proxy |
+
+The proxy is the part worth knowing about. niri does not run keybindings on
+`zwp_virtual_keyboard` input — keys arrive correctly formed and reach the
+focused window, but `Mod+D` and friends do nothing, whatever modifier they
+are bound to. The proxy re-implements the virtual keyboard and pointer on
+`/dev/uinput` so the compositor sees ordinary kernel events and binds behave
+as they do locally.
+
+Super only reaches the remote in a viewer's full-screen mode, where it holds
+the keyboard grab; Windows hands the key to Explorer otherwise. That is
+client-side and not fixable from here.
 
 ## Notes if you're borrowing this
 

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Stream this machine's audio over the tailnet.
+#
+#   audio-remote            start streaming (tailnet address)
+#   audio-remote --stop     stop
+#   audio-remote --url      print the URL to open
+#
+# VNC carries no audio — RFB has no channel for it, so no wayvnc or client
+# setting can provide it. This is a separate stream alongside the picture.
+#
+# What it captures is the monitor of whatever sink is *currently default*,
+# resolved at each start rather than hardcoded. That matters here because the
+# default is the equalizer filter chain: capturing the hardware sink instead
+# would miss anything the EQ is applied to, and capturing a fixed name would
+# break the moment the default moved to the Bluetooth headset.
+#
+# MP3 rather than Opus or raw PCM: every client plays it with no SDP file and
+# no codec negotiation, the encode is a rounding error next to the VNC capture
+# already running, and 128k stereo is a tenth of what uncompressed L16 costs
+# on the wire.
+
+set -euo pipefail
+
+PORT=8000
+UNIT=audio-remote
+BITRATE=128k
+
+default_monitor() {
+    pw-dump 2>/dev/null | python3 -c '
+import json, sys
+try:
+    objs = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+default = None
+for o in objs:
+    if o.get("type", "").endswith("Metadata"):
+        for m in o.get("metadata") or []:
+            if m.get("key") == "default.audio.sink":
+                v = m.get("value")
+                default = v.get("name") if isinstance(v, dict) else v
+if not default:
+    sys.exit(1)
+print(default + ".monitor")
+'
+}
+
+tailnet_addr() { tailscale ip -4 2>/dev/null | head -1; }
+
+case "${1:-}" in
+    --stop)
+        systemctl --user stop "$UNIT.service" 2>/dev/null || true
+        echo "stopped"
+        exit 0
+        ;;
+    --url)
+        ADDR=$(tailnet_addr)
+        echo "http://${ADDR:-<tailnet-ip>}:$PORT"
+        exit 0
+        ;;
+    "") ;;
+    *)
+        echo "usage: audio-remote [--stop|--url]" >&2
+        exit 2
+        ;;
+esac
+
+ADDR=$(tailnet_addr)
+if [[ -z ${ADDR:-} ]]; then
+    echo "tailscale is not up — run 'sudo tailscale up' first." >&2
+    exit 1
+fi
+
+MONITOR=$(default_monitor) || { echo "could not find the default sink" >&2; exit 1; }
+
+systemctl --user stop "$UNIT.service" 2>/dev/null || true
+
+# ffmpeg exits with a broken pipe the moment a client disconnects, and
+# -multiple_requests does not save it for the mp3 muxer — so systemd restarts
+# it instead. Each reconnect gets a fresh encoder, which costs a second of
+# silence and nothing else.
+systemd-run --user --collect --unit="$UNIT" \
+    --property=Restart=always --property=RestartSec=1 \
+    ffmpeg -loglevel warning \
+        -f pulse -i "$MONITOR" \
+        -c:a libmp3lame -b:a "$BITRATE" -ac 2 -ar 48000 \
+        -fflags nobuffer -flush_packets 1 \
+        -f mp3 -listen 1 -multiple_requests 1 "http://$ADDR:$PORT" >/dev/null
+
+for _ in {1..20}; do
+    ss -ltn "sport = :$PORT" 2>/dev/null | grep -q "$ADDR" && break
+    sleep 0.25
+done
+
+if ss -ltn "sport = :$PORT" 2>/dev/null | grep -q "$ADDR"; then
+    echo "streaming $MONITOR"
+    echo "open this on the other machine:  http://$ADDR:$PORT"
+else
+    echo "ffmpeg did not bind — check: journalctl --user -u $UNIT -n 20" >&2
+    exit 1
+fi

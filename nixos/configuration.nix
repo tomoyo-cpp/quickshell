@@ -215,7 +215,12 @@
   # to the LAN or the internet — Tailscale already authenticates and encrypts,
   # which is a far better story than VNC's own password.
   services.tailscale.enable = true;
-  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 5900 ];
+  # 5900 wayvnc, 8000 the audio stream (audio-remote) — VNC carries no
+  # audio, so sound travels alongside the picture rather than inside it.
+  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [
+    5900
+    8000
+  ];
 
   # Creates the uinput group and the udev rule that makes /dev/uinput
   # group-writable; without it the proxy cannot open the device and falls back
