@@ -192,7 +192,7 @@ The tree mirrors where things actually live, so the mapping is obvious:
 
 ```
 install.sh      links the whole thing into place
-nixos/          configuration.nix + hardware-configuration.nix   -> /etc/nixos
+nixos/          configuration.nix, pkgs/                          -> /etc/nixos
 config/         everything under ~/.config
   quickshell/     the shell — surfaces, widgets, components, services, scripts
   niri/           config.kdl, wallpaper startup
@@ -246,8 +246,12 @@ client-side and not fixable from here.
 
 ## Notes if you're borrowing this
 
-- **`hardware-configuration.nix` is mine.** Regenerate yours with
-  `nixos-generate-config` before rebuilding.
+- **`hardware-configuration.nix` is deliberately not here.** It is nothing but
+  filesystem UUIDs specific to one laptop — useless to you and a stable
+  hardware fingerprint if published. Run `nixos-generate-config` and yours
+  appears at `/etc/nixos/hardware-configuration.nix`, which is where the build
+  reads it from; only `configuration.nix` and `pkgs/` are symlinked out of this
+  repo.
 - **Spotify needs `spotify-sync` first.** spicetify can't patch the read-only
   nixpkgs build, so the script builds a writable copy (~103 MB, symlinking
   everything but `Apps/`) and repoints the wrapper at it.

@@ -34,3 +34,8 @@ local/share/applications/claude-code-url-handler.desktop
 # only ever appears when something imports or byte-compiles them.
 __pycache__/
 *.pyc
+
+# Machine-specific and identifying: filesystem UUIDs unique to this laptop,
+# useless to anyone cloning (nixos-generate-config writes their own), and a
+# stable fingerprint of the hardware if published.
+nixos/hardware-configuration.nix
