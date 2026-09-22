@@ -59,7 +59,6 @@
     ];
   };
 
-  # libva would otherwise probe and can pick the wrong backend.
   environment.sessionVariables.LIBVA_DRIVER_NAME = "iHD";
 
   # ── Audio (Pipewire) ────────────────────────────────────────────────────
@@ -327,6 +326,9 @@
       duf
       glow
       # Programs
+      # Zen is not in nixpkgs; pkgs/zen-browser.nix pins the upstream
+      # release and patches it for the store.
+      (pkgs.callPackage ./pkgs/zen-browser.nix { })
       firefox
       librewolf
       spotify
