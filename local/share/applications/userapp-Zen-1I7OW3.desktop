@@ -1,0 +1,8 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Application
+NoDisplay=true
+Exec=/nix/store/mz04b7mz4ihw8kf1rp6ipfi9v7lwfdgs-zen-browser-1.22.2b/opt/zen/zen %u
+Name=Zen
+Comment=Custom definition for Zen

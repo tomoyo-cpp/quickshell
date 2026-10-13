@@ -18,6 +18,7 @@
   copyDesktopItems,
   alsa-lib,
   curl,
+  libpulseaudio,
   dbus-glib,
   gtk3,
   libXtst,
@@ -71,11 +72,33 @@ stdenv.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  # PipeWire on the library path is what lets WebRTC screen sharing work
-  # through the portal; without it the browser simply offers no sources.
+  # These are all dlopen'd at runtime rather than linked, so buildInputs does
+  # not reach them — autoPatchelf only fixes libraries a binary actually
+  # declares. They have to be on LD_LIBRARY_PATH or the lookup fails silently:
+  #
+  #   libpulse / libasound  cubeb's audio backends. Missing either means the
+  #                         browser starts fine and plays nothing at all, with
+  #                         no error — which is exactly how this was found.
+  #   libpipewire           WebRTC screen sharing through the portal; without
+  #                         it the share dialog offers no sources.
+  #   libva                 VA-API video decode on the iGPU.
+  # MOZ_LEGACY_PROFILES stops the browser tying its default profile to a hash
+  # of the install path. On NixOS that path changes on every rebuild of this
+  # derivation, so without it each rebuild looks like a brand-new install and
+  # the browser silently starts on an empty profile — history, logins and
+  # extensions apparently gone, while the real profile sits untouched beside
+  # it. MOZ_ALLOW_DOWNGRADE stops the same thing happening in reverse if a
+  # profile is ever opened by an older build.
   preFixup = ''
     gappsWrapperArgs+=(
-      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ pipewire libva ]}"
+      --set MOZ_LEGACY_PROFILES 1
+      --set MOZ_ALLOW_DOWNGRADE 1
+      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [
+        libpulseaudio
+        alsa-lib
+        pipewire
+        libva
+      ]}"
     )
   '';
 
