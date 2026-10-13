@@ -14,7 +14,7 @@
   networking.networkmanager.enable = true;
 
   # ── Locale / Time ───────────────────────────────────────────────────────
-  time.timeZone = "Europe/Tallinn";
+  time.timeZone = "EET";
   i18n.defaultLocale = "en_US.UTF-8";
 
   # ── NixOS Build Auto-Delete ─────────────────────────────────────────────

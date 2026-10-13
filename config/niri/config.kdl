@@ -171,13 +171,13 @@ layout {
         // - CSS-like notation: "rgb(255, 127, 0)", rgba(), hsl() and a few others.
 
         // Color of the ring on the active monitor.
-        active-color "#8aadf4"
+        active-color "#ffffff"
 
         // Color of the ring on inactive monitors.
         //
         // The focus ring only draws around the active window, so the only place
         // where you can see its inactive-color is on other monitors.
-        inactive-color "#5b6078"
+        inactive-color "#585b70"
 
         // You can also use gradients. They take precedence over solid colors.
         // Gradients are rendered the same as CSS linear-gradient(angle, from, to).
@@ -201,9 +201,9 @@ layout {
         
         width 1
 
-        active-color "#8aadf4"
-        inactive-color "#5b6078"
-        urgent-color "#ed8796"
+        active-color "#ffffff"
+        inactive-color "#585b70"
+        urgent-color "#f38ba8"
 
         // For example, this is a pastel rainbow gradient via in="oklch longer hue".
         // active-gradient from="#e5989b" to="#ffb4a2" angle=45 relative-to="workspace-view" in="oklch longer hue"
@@ -348,7 +348,6 @@ binds {
     Mod+Return { spawn "kitty"; }
     Mod+E { spawn "kitty" "yazi"; }
     Mod+D { spawn "qs" "ipc" "call" "bar" "toggle" "launcher"; }
-    Ctrl+Shift+S { spawn "mullvad-gui"; }
     Mod+G { spawn "gimp"; }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
@@ -617,7 +616,6 @@ binds {
     Mod+Shift+2 { spawn-sh "qs ipc call bar tab wallpaper"; } //qs-custom
     Mod+Shift+3 { spawn-sh "qs ipc call bar tab appearance"; } //qs-custom
     Mod+Shift+4 { spawn-sh "qs ipc call bar tab settings"; } //qs-custom
-    Mod+A { spawn-sh "qs ipc call bar tab appearance"; } //qs-custom
     Mod+P { spawn-sh "qs ipc call bar toggle media"; } //qs-custom
 
 }
@@ -625,5 +623,5 @@ binds {
 //qs-cursor
 cursor {
     xcursor-theme "capitaine-cursors"
-    xcursor-size 22
+    xcursor-size 23
 }

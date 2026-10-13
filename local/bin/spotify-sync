@@ -12,6 +12,23 @@
 #
 # Re-run this after any nixos-rebuild that moves Spotify to a new store path.
 # It is idempotent, and it detects the move on its own.
+#
+# ── When something looks wrong, in order of likelihood ──────────────────
+#
+#   Layout wrong, controls clipped, UI too big
+#       The scale flag below is missing from the wrapper. Re-run this script.
+#
+#   Colours do not match the bar
+#       The scheme is baked into the theme and only rewritten when the bar's
+#       flavour changes, so a Spotify restart drops the live values:
+#           spotify-theme --live --flavour <flavour> --use-accent <accent>
+#
+#   No theme at all after a system update
+#       Spotify moved store paths and Apps/ was recopied from the vanilla
+#       build. Re-run this script; it re-patches.
+#
+#   Theme itself looks broken after Spotify changes its own UI
+#       spotify-theme --update-theme     (re-fetches `text` from upstream)
 
 set -euo pipefail
 
@@ -75,7 +92,11 @@ else
     # Loopback only, and it is worth knowing what it is: anything that can
     # reach 127.0.0.1:9222 can run JavaScript inside Spotify. Drop the flag
     # here and re-run this script to close it again.
-    sed -i "s|\(\"$DEST/.spotify-wrapped\"\)|\1 --remote-debugging-port=9222|" "$DEST/spotify"
+    # --force-device-scale-factor=1 pins the UI scale. CEF otherwise derives
+    # one from the panel's physical size: 1920x1080 across 310x170 mm is about
+    # 158 DPI, which made it pick 1.14 and render the whole interface too large
+    # for the window — controls clipped and the layout did not fit.
+    sed -i "s|\(\"$DEST/.spotify-wrapped\"\)|\1 --remote-debugging-port=9222 --force-device-scale-factor=1|" "$DEST/spotify"
     chmod +x "$DEST/spotify"
 
     echo "$SRC" > "$STAMP"
