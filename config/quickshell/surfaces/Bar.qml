@@ -46,6 +46,53 @@ PanelWindow {
         bar.openPopup = "dashboard";
     }
 
+    readonly property var barWidgets: ({
+            sysmon: sysmonWidget,
+            media: mediaButton,
+            clock: clockButton,
+            screenshot: screenshotWidget,
+            recorder: recordWidget,
+            keyboard: keyboardWidget,
+            clipboard: clipButton,
+            battery: batteryButton
+        })
+
+    // A widget's centre in strip coordinates, whichever cluster holds it —
+    // what its dropdown hangs from.
+    function clusterX(w) {
+        const c = w.parent === leftGroup.row ? leftGroup : rightContainer;
+        return c.x + w.x + w.width / 2;
+    }
+
+    function layoutWidgets() {
+        const pick = list => list.map(k => bar.barWidgets[k]).filter(w => w);
+        leftGroup.row.children = pick(Settings.barLeft);
+        rightContainer.row.children = pick(Settings.barRight);
+        stash.children = pick(Settings.barHidden);
+    }
+
+    Connections {
+        target: Settings
+        function onBarLeftChanged() {
+            bar.layoutWidgets();
+        }
+        function onBarRightChanged() {
+            bar.layoutWidgets();
+        }
+    }
+    Component.onCompleted: bar.layoutWidgets()
+
+    // The network panel on a given tab (0 Wi-Fi, 1 Bluetooth, 2 VPN); a
+    // second click on the same tab closes it.
+    function openNetworkTab(i) {
+        if (bar.openPopup === "network" && networkPanel.tab === i) {
+            bar.openPopup = "";
+            return;
+        }
+        networkPanel.showTab(i);
+        bar.openPopup = "network";
+    }
+
     function togglePopup(name) {
         bar.openPopup = bar.openPopup === name ? "" : name;
     }
@@ -162,7 +209,11 @@ PanelWindow {
         // Containers 1 and 3 hang off the workspace container rather than the
         // bar edges, so the three of them stay a single centred cluster.
 
-        // ── 1: system load + media ───────────────────────────────────────
+        // ── 1 and 3: the two widget clusters ─────────────────────────────
+        // Which widgets, on which side and in what order is Settings.barLeft
+        // and barRight; layoutWidgets() moves them into place. Anything in
+        // neither list waits in `stash`, hidden, so popups anchored to it
+        // still have something to anchor to.
         Container {
             id: leftGroup
 
@@ -170,18 +221,6 @@ PanelWindow {
             anchors.rightMargin: Theme.gap
             anchors.verticalCenter: parent.verticalCenter
             innerSpacing: 4
-
-            SysMonWidget {
-                bar: bar
-                visible: Settings.showSysMon
-            }
-
-            MediaWidget {
-                id: mediaButton
-
-                bar: bar
-                visible: Settings.showMedia
-            }
         }
 
         // ── 2: workspaces ────────────────────────────────────────────────
@@ -195,44 +234,47 @@ PanelWindow {
             }
         }
 
-        // ── 3: clock, screenshot, keyboard, settings, battery ────────────
         Container {
             id: rightContainer
 
             anchors.left: workspaces.right
             anchors.leftMargin: Theme.gap
             anchors.verticalCenter: parent.verticalCenter
+        }
 
+        Item {
+            id: stash
+            visible: false
+
+            SysMonWidget {
+                id: sysmonWidget
+                bar: bar
+            }
+            MediaWidget {
+                id: mediaButton
+                bar: bar
+            }
             ClockWidget {
                 id: clockButton
-
                 bar: bar
             }
-
             ScreenshotWidget {
-                visible: Settings.showScreenshot
+                id: screenshotWidget
             }
-
             RecordWidget {
-                visible: Settings.showRecorder
+                id: recordWidget
             }
-
             KeyboardWidget {
-                visible: Settings.showKeyboard
+                id: keyboardWidget
             }
-
             ClipboardWidget {
                 id: clipButton
-
                 bar: bar
-                visible: Settings.showClipboard
             }
-
             BatteryWidget {
                 id: batteryButton
-
                 bar: bar
-                visible: Settings.showBattery && device !== null && device.isLaptopBattery
+                visible: device !== null && device.isLaptopBattery
             }
         }
 
@@ -346,7 +388,7 @@ PanelWindow {
         id: mediaPanel
 
         bar: bar
-        anchorX: Theme.barSideMargin + leftGroup.x + mediaButton.x + mediaButton.width / 2
+        anchorX: Theme.barSideMargin + bar.clusterX(mediaButton)
     }
 
     // Calendar and tasks, beneath the clock.
@@ -354,7 +396,7 @@ PanelWindow {
         id: calendarPanel
 
         bar: bar
-        anchorX: Theme.barSideMargin + rightContainer.x + clockButton.x + clockButton.width / 2
+        anchorX: Theme.barSideMargin + bar.clusterX(clockButton)
     }
 
     // Clipboard history, flowing out beneath its button.
@@ -375,7 +417,7 @@ PanelWindow {
         id: clipPanel
 
         bar: bar
-        anchorX: Theme.barSideMargin + rightContainer.x + clipButton.x + clipButton.width / 2
+        anchorX: Theme.barSideMargin + bar.clusterX(clipButton)
     }
 
     // Battery detail, flowing out beneath the battery ring.
@@ -383,7 +425,7 @@ PanelWindow {
         id: batteryPanel
 
         bar: bar
-        anchorX: Theme.barSideMargin + rightContainer.x + batteryButton.x + batteryButton.width / 2
+        anchorX: Theme.barSideMargin + bar.clusterX(batteryButton)
     }
 
     // Wi-Fi and bluetooth, flowing out beneath the network widget.

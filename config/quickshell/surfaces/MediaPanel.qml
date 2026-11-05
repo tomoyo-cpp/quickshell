@@ -129,14 +129,18 @@ PanelShell {
 
                 Image {
                     anchors.fill: parent
-                    source: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""
+                    // Art served over the network (Spotify's is) is a
+                    // request to someone else's server: only with online
+                    // lookups on. Local files always load.
+                    readonly property string art: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""
+                    source: Settings.onlineLookups || !/^https?:/.test(art) ? art : ""
                     fillMode: Image.PreserveAspectCrop
                     visible: source != ""
                 }
 
                 Text {
                     anchors.centerIn: parent
-                    visible: !root.player || !root.player.trackArtUrl
+                    visible: !root.player || !root.player.trackArtUrl || (!Settings.onlineLookups && /^https?:/.test(root.player.trackArtUrl))
                     text: "󰎈"
                     font.family: Theme.iconFont
                     font.pixelSize: 26

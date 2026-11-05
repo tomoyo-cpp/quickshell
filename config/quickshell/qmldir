@@ -15,6 +15,7 @@ singleton Cursors 1.0 services/Cursors.qml
 singleton GtkTheme 1.0 services/GtkTheme.qml
 singleton Keybinds 1.0 services/Keybinds.qml
 singleton Lyrics 1.0 services/Lyrics.qml
+singleton Mullvad 1.0 services/Mullvad.qml
 singleton KittyTheme 1.0 services/KittyTheme.qml
 singleton NightLight 1.0 services/NightLight.qml
 singleton Niri 1.0 services/Niri.qml
@@ -26,13 +27,13 @@ singleton Preview 1.0 services/Preview.qml
 singleton Presets 1.0 services/Presets.qml
 singleton Settings 1.0 services/Settings.qml
 singleton SpotifyTheme 1.0 services/SpotifyTheme.qml
-singleton SwaylockTheme 1.0 services/SwaylockTheme.qml
 singleton SysMon 1.0 services/SysMon.qml
 singleton Theme 1.0 services/Theme.qml
 singleton Todos 1.0 services/Todos.qml
 singleton Wallpapers 1.0 services/Wallpapers.qml
 
 # Components — reusable building blocks
+BarLayoutEditor 1.0 components/BarLayoutEditor.qml
 Caption 1.0 components/Caption.qml
 ChipButton 1.0 components/ChipButton.qml
 Choice 1.0 components/Choice.qml
@@ -43,6 +44,7 @@ Glyph 1.0 components/Glyph.qml
 InfoRow 1.0 components/InfoRow.qml
 KeyCapture 1.0 components/KeyCapture.qml
 LevelSlider 1.0 components/LevelSlider.qml
+LockView 1.0 components/LockView.qml
 LyricsView 1.0 components/LyricsView.qml
 MarqueeText 1.0 components/MarqueeText.qml
 MiniBar 1.0 components/MiniBar.qml
@@ -82,6 +84,7 @@ SysMonWidget 1.0 widgets/SysMonWidget.qml
 Workspaces 1.0 widgets/Workspaces.qml
 
 # Surfaces — windows: the bar, its panels, overlays
+Lock 1.0 surfaces/Lock.qml
 Bar 1.0 surfaces/Bar.qml
 BatteryPanel 1.0 surfaces/BatteryPanel.qml
 CalendarPanel 1.0 surfaces/CalendarPanel.qml
@@ -95,6 +98,7 @@ Osd 1.0 surfaces/Osd.qml
 PanelShell 1.0 surfaces/PanelShell.qml
 PreviewStop 1.0 surfaces/PreviewStop.qml
 Toasts 1.0 surfaces/Toasts.qml
+Wallpaper 1.0 surfaces/Wallpaper.qml
 
 
 # Dashboard pages — split out of the old 3.5k-line Dashboard.qml
@@ -103,3 +107,4 @@ SettingsPage 1.0 surfaces/dashboard/SettingsPage.qml
 AppearancePage 1.0 surfaces/dashboard/AppearancePage.qml
 SystemPage 1.0 surfaces/dashboard/SystemPage.qml
 WallpaperPage 1.0 surfaces/dashboard/WallpaperPage.qml
+VpnView 1.0 components/VpnView.qml

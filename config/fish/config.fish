@@ -39,11 +39,11 @@ alias vim   'nvim'
 
 # ── Env ───────────────────────────────────────────────────────────────────
 set -gx EDITOR nvim
-set -gx BROWSER firefox
+# BROWSER comes from the system (environment.sessionVariables).
 set -gx XDG_CURRENT_DESKTOP niri
 set -gx NIXPKGS_ALLOW_UNFREE 1
 
-# ~/.local/bin holds the helper scripts kept in this repo (spotify-sync,
-# spotify-theme, minecraft). environment.localBinInPath does not reach the
+# ~/.local/bin holds the helper scripts kept in this repo (rice, volume,
+# spotify-*). environment.localBinInPath does not reach the
 # graphical session here, so add it explicitly.
 fish_add_path -g ~/.local/bin

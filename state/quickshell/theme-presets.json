@@ -1,0 +1,28 @@
+[
+  {
+    "name": "random",
+    "values": {
+      "accent": "maroon",
+      "flavour": "mocha",
+      "barOpacity": 0.9,
+      "containerOpacity": 0.5,
+      "panelOpacity": 0.97,
+      "shadowEnabled": true,
+      "shadowOpacity": 0.45,
+      "shadowBlur": 0.7
+    }
+  },
+  {
+    "name": "white",
+    "values": {
+      "accent": "text",
+      "flavour": "mocha",
+      "barOpacity": 0.8,
+      "containerOpacity": 0.5,
+      "panelOpacity": 0.8,
+      "shadowEnabled": true,
+      "shadowOpacity": 0.45,
+      "shadowBlur": 0.7
+    }
+  }
+]

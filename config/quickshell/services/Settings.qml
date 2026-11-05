@@ -47,7 +47,6 @@ Singleton {
     // "appearance" group so resetting colours does not silently turn these
     // off, and so theme presets carry the look without the plumbing.
     property bool themeGtk: false
-    property bool themeSwaylock: false
 
     // The terminal has followed the bar's colours since kitty theming landed,
     // so this defaults on. Its transparency is its own control rather than
@@ -130,8 +129,8 @@ Singleton {
 
     // ── Clipboard and launcher ───────────────────────────────────────────
     property bool clipboardThumbnails: true
-    // Written into niri's config and reloaded, since the cap belongs to the
-    // `wl-paste --watch cliphist store` process it spawns.
+    // Read by scripts/clip-store.sh on every copy; services/Cliphist.qml trims
+    // the history down at once when it is lowered.
     property int clipboardMaxItems: 15
     property int launcherRecentCount: 6
 
@@ -144,16 +143,65 @@ Singleton {
     property int nightTemp: 4000
 
     // ── Widgets ──────────────────────────────────────────────────────────
-    property bool showSysMon: true
-    property bool showMedia: true
+    // The bar's two clusters either side of the workspaces, in order. A
+    // widget in neither list is hidden. Bar.qml lays them out from these.
+    property var barLeft: ["sysmon", "media"]
+    property var barRight: ["clock", "screenshot", "keyboard", "clipboard", "battery"]
+    // Widgets the saved layout already knows about. One added later is put
+    // on the right once, then left where the user puts it.
+    property var barSeen: Object.keys(root.barWidgetNames)
+    readonly property var barWidgetNames: ({
+            sysmon: "System load",
+            media: "Media",
+            clock: "Clock",
+            screenshot: "Screenshot",
+            recorder: "Screen recorder",
+            keyboard: "Keyboard",
+            clipboard: "Clipboard",
+            battery: "Battery"
+        })
+    readonly property var barHidden: Object.keys(root.barWidgetNames).filter(k => !root.barLeft.includes(k) && !root.barRight.includes(k))
+
+    // Move within its side (delta -1 / +1), to the other side, out, or in.
+    function barMove(key, delta) {
+        for (const side of ["barLeft", "barRight"]) {
+            const list = root[side].slice();
+            const i = list.indexOf(key);
+            const j = i + delta;
+            if (i < 0 || j < 0 || j >= list.length)
+                continue;
+            list.splice(i, 1);
+            list.splice(j, 0, key);
+            root.set(side, list);
+        }
+    }
+    function barSwapSide(key) {
+        const from = root.barLeft.includes(key) ? "barLeft" : "barRight";
+        const to = from === "barLeft" ? "barRight" : "barLeft";
+        root.set(from, root[from].filter(k => k !== key));
+        root.set(to, root[to].concat([key]));
+    }
+    function barHide(key) {
+        root.set("barLeft", root.barLeft.filter(k => k !== key));
+        root.set("barRight", root.barRight.filter(k => k !== key));
+    }
+    function barShow(key, side) {
+        root.barHide(key);
+        root.set(side, root[side].concat([key]));
+    }
+
+    // The edges of the bar, which are not part of either cluster.
     property bool showLauncher: true
     property bool showOverview: true
-    property bool showScreenshot: true
-    property bool showRecorder: false
-    property bool showKeyboard: true
-    property bool showClipboard: true
-    property bool showBattery: true
     property bool showNetwork: true
+    property bool showVpn: true
+
+    // ── Privacy ──────────────────────────────────────────────────────────
+    // Anything that reaches the internet on its own: lyrics from lrclib.net
+    // and album art served over https (Spotify's, for one). Off means the
+    // shell never makes a request you did not ask for.
+    property bool onlineLookups: true
+
 
     // ── Popups ───────────────────────────────────────────────────────────
     property bool osdEnabled: true
@@ -165,7 +213,7 @@ Singleton {
             sizing: ["barHeight", "barMargin", "barSideMargin", "barSideMarginRight", "linkSideMargins", "barRadius", "panelRadius", "gap", "iconSize", "fontSize", "reservedMargin"],
             inner: ["containerInset", "containerRadius", "pillPadding", "workspaceIconSize"],
             appearance: ["accent", "flavour", "barOpacity", "containerOpacity", "panelOpacity", "shadowEnabled", "shadowOpacity", "shadowBlur"],
-            theming: ["themeGtk", "themeSwaylock", "themeTerminal", "terminalOpacity", "themeSpotify"],
+            theming: ["themeGtk", "themeTerminal", "terminalOpacity", "themeSpotify"],
             windows: ["themeWindows", "windowBorderWidth", "windowRadius", "windowGaps"],
             cursor: ["cursorTheme", "cursorSize"],
             clock: ["clockUse24h", "clockShowSeconds", "clockShowDate", "clockFormat"],
@@ -177,7 +225,8 @@ Singleton {
             clipboard: ["clipboardThumbnails", "clipboardMaxItems", "launcherRecentCount"],
             cava: ["cavaBands", "cavaFramerate", "cavaSmoothing"],
             night: ["nightTemp"],
-            widgets: ["showSysMon", "showMedia", "showLauncher", "showOverview", "showScreenshot", "showRecorder", "showKeyboard", "showClipboard", "showBattery", "showNetwork"],
+            widgets: ["barLeft", "barRight", "barSeen", "showLauncher", "showOverview", "showNetwork", "showVpn"],
+            privacy: ["onlineLookups"],
             popups: ["osdEnabled", "toastsEnabled"]
         })
 
@@ -257,6 +306,39 @@ Singleton {
             for (const k of root.keys)
                 if (data[k] !== undefined)
                     root[k] = data[k];
+
+            // From before the layout lists: one show flag per widget.
+            if (data.barLeft === undefined) {
+                const flag = {
+                    sysmon: "showSysMon",
+                    media: "showMedia",
+                    clock: "",
+                    screenshot: "showScreenshot",
+                    recorder: "showRecorder",
+                    keyboard: "showKeyboard",
+                    clipboard: "showClipboard",
+                    battery: "showBattery"
+                };
+                const kept = k => flag[k] === "" || data[flag[k]] !== false;
+                root.barLeft = ["sysmon", "media"].filter(kept);
+                root.barRight = ["clock", "screenshot", "keyboard", "clipboard", "battery"].filter(kept).concat(data.showRecorder === true ? ["recorder"] : []);
+            }
+
+            // Widgets since removed.
+            const known = k => k in root.barWidgetNames;
+            root.barLeft = root.barLeft.filter(known);
+            root.barRight = root.barRight.filter(known);
+
+            // Widgets newer than the saved layout.
+            const seen = data.barSeen ?? ["sysmon", "media", "clock", "screenshot", "recorder", "keyboard", "clipboard", "battery"];
+            const fresh = Object.keys(root.barWidgetNames).filter(k => !seen.includes(k) && !root.barLeft.includes(k) && !root.barRight.includes(k));
+            if (fresh.length > 0) {
+                const right = root.barRight.slice();
+                const at = right.indexOf("battery");
+                right.splice(at < 0 ? right.length : at, 0, ...fresh);
+                root.barRight = right;
+            }
+            root.barSeen = Object.keys(root.barWidgetNames);
         }
     }
 }

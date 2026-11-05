@@ -5,8 +5,9 @@ import Quickshell
 import Quickshell.Io
 import "root:/"
 
-// Clipboard history backed by cliphist. The store is filled by the
-// `wl-paste --watch cliphist store` process niri spawns at startup.
+// Clipboard history backed by cliphist. The store is filled by
+// scripts/clip-store.sh, which niri's `wl-paste --watch` runs per copy and
+// which caps the history at Settings.clipboardMaxItems.
 Singleton {
     id: root
 
@@ -19,7 +20,7 @@ Singleton {
     property bool watching: false
 
     // Pinned clips keep their own copy of the text. cliphist evicts past the
-    // 15-item cap, so referencing its ids alone would lose them.
+    // cap, so referencing its ids alone would lose them.
     property var pinned: []
 
     // Stashed before decoding, since the collector only sees the raw bytes.
@@ -43,6 +44,31 @@ Singleton {
     }
 
     property int thumbRev: 0
+
+    // cliphist only trims when the next clip arrives, so a lower cap is
+    // applied straight away here, and once at startup for anything stored
+    // over it before.
+    function trim() {
+        const n = Math.max(1, Settings.clipboardMaxItems);
+        trimProc.exec(["sh", "-c", `cliphist list | tail -n +${n + 1} | cliphist delete`]);
+    }
+    Connections {
+        target: Settings
+        function onClipboardMaxItemsChanged() {
+            trimDelay.restart();
+        }
+    }
+    // Waits out slider drags, and the settings file loading at startup.
+    Timer {
+        id: trimDelay
+        interval: 1500
+        running: true
+        onTriggered: root.trim()
+    }
+    Process {
+        id: trimProc
+        onExited: root.refresh()
+    }
 
     function refresh() {
         if (listProc.running)

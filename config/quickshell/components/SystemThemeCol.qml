@@ -28,12 +28,6 @@ SettingsCol {
     }
 
     ToggleSwitch {
-        label: "Lock screen"
-        checked: Settings.themeSwaylock
-        onToggled: Settings.set("themeSwaylock", !Settings.themeSwaylock)
-    }
-
-    ToggleSwitch {
         label: "Terminal"
         checked: Settings.themeTerminal
         onToggled: Settings.set("themeTerminal", !Settings.themeTerminal)

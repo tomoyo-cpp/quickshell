@@ -270,18 +270,17 @@ DashPage {
                     SettingsCol {
                         colWidth: page.settingsColWidth
                         visible: page.settingsTab === 1
-                        title: "Shown"
+                        title: "Bar contents"
                         group: "widgets"
 
-                        ToggleSwitch {
-                            label: "System load"
-                            checked: Settings.showSysMon
-                            onToggled: Settings.set("showSysMon", !Settings.showSysMon)
-                        }
-                        ToggleSwitch {
-                            label: "Media"
-                            checked: Settings.showMedia
-                            onToggled: Settings.set("showMedia", !Settings.showMedia)
+                        BarLayoutEditor {}
+
+                        Caption {
+                            vcenter: false
+                            text: "Edges"
+                            color: Theme.subtext0
+                            size: 11
+                            topPadding: 6
                         }
                         ToggleSwitch {
                             label: "Launcher"
@@ -294,34 +293,14 @@ DashPage {
                             onToggled: Settings.set("showOverview", !Settings.showOverview)
                         }
                         ToggleSwitch {
-                            label: "Screenshot"
-                            checked: Settings.showScreenshot
-                            onToggled: Settings.set("showScreenshot", !Settings.showScreenshot)
-                        }
-                        ToggleSwitch {
-                            label: "Screen recorder"
-                            checked: Settings.showRecorder
-                            onToggled: Settings.set("showRecorder", !Settings.showRecorder)
-                        }
-                        ToggleSwitch {
-                            label: "Keyboard"
-                            checked: Settings.showKeyboard
-                            onToggled: Settings.set("showKeyboard", !Settings.showKeyboard)
-                        }
-                        ToggleSwitch {
-                            label: "Clipboard"
-                            checked: Settings.showClipboard
-                            onToggled: Settings.set("showClipboard", !Settings.showClipboard)
-                        }
-                        ToggleSwitch {
-                            label: "Battery"
-                            checked: Settings.showBattery
-                            onToggled: Settings.set("showBattery", !Settings.showBattery)
-                        }
-                        ToggleSwitch {
                             label: "Wi-Fi / Bluetooth"
                             checked: Settings.showNetwork
                             onToggled: Settings.set("showNetwork", !Settings.showNetwork)
+                        }
+                        ToggleSwitch {
+                            label: "VPN shield"
+                            checked: Settings.showVpn
+                            onToggled: Settings.set("showVpn", !Settings.showVpn)
                         }
 
                         Item {
@@ -1205,6 +1184,32 @@ DashPage {
                             from: 0
                             to: 12
                             onMoved: v => Settings.set("launcherRecentCount", v)
+                        }
+
+                        Item {
+                            width: 1
+                            height: 10
+                        }
+
+                        Caption {
+                            vcenter: false
+                            text: "Privacy"
+                            color: Theme.subtext0
+                            size: 11
+                        }
+
+                        ToggleSwitch {
+                            label: "Online lookups"
+                            checked: Settings.onlineLookups
+                            onToggled: Settings.set("onlineLookups", !Settings.onlineLookups)
+                        }
+                        Caption {
+                            vcenter: false
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: "Lyrics from lrclib.net and album art from the web. Off: the shell makes no requests of its own."
+                            color: Theme.overlay0
+                            size: 10
                         }
 
                         Item {

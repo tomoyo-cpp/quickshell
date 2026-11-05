@@ -111,8 +111,7 @@ float_at() { # x y w h
 # here, and restored from cleanup as well as inline: set-wallpaper.sh persists
 # its argument, so an interrupted swap would otherwise make the random pick
 # permanent.
-AWWW_START="$HOME/.config/niri/start-awww.sh"
-ORIG_WALL=$(sed -n 's/^WALLPAPER="\(.*\)"$/\1/p' "$AWWW_START" | head -1)
+ORIG_WALL=$("$(dirname "$0")/current-wallpaper.sh")
 WALL_SWAPPED=0
 
 current_ws() {

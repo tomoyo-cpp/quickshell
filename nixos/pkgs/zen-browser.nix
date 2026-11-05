@@ -26,6 +26,13 @@
   pciutils,
   pipewire,
   xorg,
+  # Enterprise policies (https://mozilla.github.io/policy-templates/),
+  # written to distribution/policies.json, which every Firefox fork reads.
+  policies ? { },
+  # Default prefs, { name = value; }, written to defaults/pref/ where the
+  # browser reads its built-in defaults. Defaults, not locks: about:config
+  # can still change them.
+  prefs ? { },
 }:
 
 stdenv.mkDerivation (finalAttrs: {
@@ -49,7 +56,7 @@ stdenv.mkDerivation (finalAttrs: {
     dbus-glib
     gtk3
     libXtst
-    libva          # VA-API, so video decode can reach the iGPU
+    libva # VA-API, so video decode can reach the iGPU
     pciutils
     stdenv.cc.cc.lib
     xorg.libXt
@@ -67,6 +74,11 @@ stdenv.mkDerivation (finalAttrs: {
     mkdir -p $out/opt/zen $out/bin
     cp -r ./* $out/opt/zen/
     ln -s $out/opt/zen/zen $out/bin/zen
+    mkdir -p $out/opt/zen/distribution
+    cp ${builtins.toFile "policies.json" (builtins.toJSON { inherit policies; })} \
+      $out/opt/zen/distribution/policies.json
+    cp ${builtins.toFile "rice-prefs.js" (lib.concatStrings (lib.mapAttrsToList (k: v: "pref(${builtins.toJSON k}, ${builtins.toJSON v});\n") prefs))} \
+      $out/opt/zen/defaults/pref/rice-prefs.js
     install -Dm644 $out/opt/zen/browser/chrome/icons/default/default128.png \
       $out/share/icons/hicolor/128x128/apps/zen.png || true
     runHook postInstall
@@ -93,12 +105,14 @@ stdenv.mkDerivation (finalAttrs: {
     gappsWrapperArgs+=(
       --set MOZ_LEGACY_PROFILES 1
       --set MOZ_ALLOW_DOWNGRADE 1
-      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [
-        libpulseaudio
-        alsa-lib
-        pipewire
-        libva
-      ]}"
+      --prefix LD_LIBRARY_PATH : "${
+        lib.makeLibraryPath [
+          libpulseaudio
+          alsa-lib
+          pipewire
+          libva
+        ]
+      }"
     )
   '';
 
@@ -109,8 +123,15 @@ stdenv.mkDerivation (finalAttrs: {
       icon = "zen";
       desktopName = "Zen Browser";
       genericName = "Web Browser";
-      categories = [ "Network" "WebBrowser" ];
-      mimeTypes = [ "text/html" "x-scheme-handler/http" "x-scheme-handler/https" ];
+      categories = [
+        "Network"
+        "WebBrowser"
+      ];
+      mimeTypes = [
+        "text/html"
+        "x-scheme-handler/http"
+        "x-scheme-handler/https"
+      ];
     })
   ];
 

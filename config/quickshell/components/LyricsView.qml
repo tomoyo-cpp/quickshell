@@ -37,7 +37,7 @@ Item {
         visible: !Lyrics.hasLyrics
         width: parent.width - 20
         horizontalAlignment: Text.AlignHCenter
-        text: Lyrics.loading ? "Looking for lyrics…" : (Lyrics.player ? "No lyrics available for this track" : "Nothing playing")
+        text: !Settings.onlineLookups ? "Lyrics are off — online lookups are disabled in Settings" : Lyrics.loading ? "Looking for lyrics…" : (Lyrics.player ? "No lyrics available for this track" : "Nothing playing")
         color: Theme.overlay0
         size: 12
     }

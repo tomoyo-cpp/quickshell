@@ -22,7 +22,8 @@ Singleton {
     }
 
     function apply(path) {
-        // Optimistic, so the selection highlights immediately.
+        // Straight away: both wallpaper surfaces start loading it now, and
+        // the selection highlights.
         root.current = path;
         setProc.exec([`${Quickshell.shellDir}/scripts/set-wallpaper.sh`, path]);
     }
@@ -72,14 +73,22 @@ Singleton {
         }
     }
 
-    // The active wallpaper is whatever start-awww.sh is pinned to.
+    // The active wallpaper: the one last picked, or the first image there is.
     Process {
         id: currentProc
         running: true
-        command: ["sh", "-c", `sed -n 's/^WALLPAPER="\\(.*\\)"/\\1/p' "${Quickshell.env("HOME")}/.config/niri/start-awww.sh" | head -1`]
+        command: [`${Quickshell.shellDir}/scripts/current-wallpaper.sh`]
 
         stdout: StdioCollector {
             onStreamFinished: root.current = text.trim()
         }
+    }
+
+    // Picked from elsewhere (set-wallpaper.sh from a terminal, the tour):
+    // follow the state file too.
+    FileView {
+        path: `${Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state"}/rice/wallpaper`
+        watchChanges: true
+        onFileChanged: currentProc.running = true
     }
 }

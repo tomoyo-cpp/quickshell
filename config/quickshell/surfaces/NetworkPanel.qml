@@ -6,8 +6,8 @@ import Quickshell.Networking
 import Quickshell.Bluetooth
 import "root:/"
 
-// Wi-Fi and Bluetooth, flowing out of the bar beneath the network widget at
-// the right end.
+// Wi-Fi, Bluetooth and the VPN, flowing out of the bar beneath the network
+// widget. Each tab carries its radio's switch; the VPN's connects the tunnel.
 //
 // The link summary at the top reuses the System page's dual network ring:
 // download on the outer track, upload on the inner one.
@@ -15,7 +15,7 @@ PanelShell {
     id: root
 
     popupName: "network"
-    bodyWidth: 380
+    bodyWidth: 420
 
     // ── Devices ──────────────────────────────────────────────────────────
     readonly property var wifiDevice: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
@@ -47,7 +47,13 @@ PanelShell {
     readonly property var btDevices: Bluetooth.devices.values.filter(d => d.paired || d.connected || (root.adapter && root.adapter.discovering))
 
     // ── Layout ───────────────────────────────────────────────────────────
-    property int tab: 0   // 0 = wi-fi, 1 = bluetooth
+    property int tab: 0   // 0 = wi-fi, 1 = bluetooth, 2 = vpn
+
+    readonly property int vpnHeight: 330
+
+    function showTab(i) {
+        root.tab = i;
+    }
 
     readonly property int rowHeight: 34
     readonly property int listCount: root.tab === 0 ? root.visibleNetworks.length : root.btDevices.length
@@ -58,13 +64,15 @@ PanelShell {
         const half = Math.round((root.screen ? root.screen.height : 1080) / 2) - (Theme.barMargin + Theme.barHeight);
         return Math.max(root.rowHeight * 3, half - 232);
     }
-    readonly property int listHeight: Math.max(root.rowHeight, Math.min(root.maxListHeight, root.listCount * (root.rowHeight + 2)))
+    readonly property int listHeight: root.tab === 2 ? root.vpnHeight : Math.max(root.rowHeight, Math.min(root.maxListHeight, root.listCount * (root.rowHeight + 2)))
 
     bodyHeight: 14 + 104 + 12 + 30 + 8 + root.listHeight + (pskRow.active ? 42 : 0) + 14
 
     // Text entry needs real keyboard focus; on-demand focus would want a
     // click on the surface first and swallow the first keystroke.
-    WlrLayershell.keyboardFocus: pskRow.active ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    // The VPN tab's search and account fields are clicked into first, so
+    // on-demand focus is enough there.
+    WlrLayershell.keyboardFocus: pskRow.active ? WlrKeyboardFocus.Exclusive : root.tab === 2 ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     // ── Live details ─────────────────────────────────────────────────────
     property string iface: "-"
@@ -73,6 +81,14 @@ PanelShell {
     property string linkSpeed: "-"
     property string ssid: "-"
     property string band: "-"
+
+    // Server list and settings are read when the tab is looked at; the
+    // tunnel state itself is live.
+    readonly property bool vpnShown: root.open && root.tab === 2
+    onVpnShownChanged: if (root.vpnShown) {
+        Mullvad.refresh();
+        Mullvad.loadRelays();
+    }
 
     onOpenChanged: {
         if (open) {
@@ -281,18 +297,29 @@ PanelShell {
             height: 30
             spacing: 6
 
+            readonly property real vpnWidth: 100
+            readonly property real radioWidth: (width - vpnWidth - 12) / 2
+
             Tab {
-                width: (parent.width - 6) / 2
+                width: parent.radioWidth
                 glyph: "󰤨"
                 label: "Wi-Fi"
                 index: 0
             }
 
             Tab {
-                width: (parent.width - 6) / 2
+                width: parent.radioWidth
                 glyph: "󰂯"
                 label: "Bluetooth"
                 index: 1
+            }
+
+            Tab {
+                width: parent.vpnWidth
+                glyph: Mullvad.glyph
+                glyphColor: Mullvad.color
+                label: "VPN"
+                index: 2
             }
         }
 
@@ -546,13 +573,19 @@ PanelShell {
                 }
             }
 
+            // VPN
+            VpnView {
+                anchors.fill: parent
+                visible: root.tab === 2
+            }
+
             // Empty state, so a disabled radio does not read as a hang.
             Caption {
                 anchors.centerIn: parent
                 // centerIn already supplies both anchors; the default vertical
                 // one would fight it.
                 vcenter: false
-                visible: root.listCount === 0
+                visible: root.tab !== 2 && root.listCount === 0
                 text: root.tab === 0 ? (Networking.wifiEnabled ? "Scanning…" : "Wi-Fi is off") : (root.btOn ? "No devices" : "Bluetooth is off")
                 color: Theme.overlay0
                 size: 11
@@ -683,6 +716,7 @@ PanelShell {
         id: tabRoot
 
         property string glyph: ""
+        property color glyphColor: Theme.blue
         property string label: ""
         property int index: 0
 
@@ -698,13 +732,15 @@ PanelShell {
             }
         }
 
+        // Centred in the part left of the switch.
         Row {
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: tabSwitch.visible ? -20 : 0
             spacing: 7
 
             Glyph {
                 text: tabRoot.glyph
-                color: tabRoot.selected ? Theme.blue : Theme.subtext0
+                color: tabRoot.selected || tabRoot.index === 2 ? tabRoot.glyphColor : Theme.subtext0
                 size: 12
             }
 
@@ -716,15 +752,20 @@ PanelShell {
             }
         }
 
-        // The radio's own switch, on the tab it belongs to.
+        // The radio's own switch, on the tab it belongs to. The VPN's is
+        // only there once there is an account to connect with.
         Toggle {
+            id: tabSwitch
+            visible: tabRoot.index !== 2 || (Mullvad.available && Mullvad.loggedIn)
             anchors.right: parent.right
             anchors.rightMargin: 9
             anchors.verticalCenter: parent.verticalCenter
-            checked: tabRoot.index === 0 ? Networking.wifiEnabled : root.btOn
+            checked: tabRoot.index === 0 ? Networking.wifiEnabled : tabRoot.index === 1 ? root.btOn : Mullvad.connected || Mullvad.busy
             onToggled: {
                 if (tabRoot.index === 0) {
                     Networking.wifiEnabled = !Networking.wifiEnabled;
+                } else if (tabRoot.index === 2) {
+                    Mullvad.toggle();
                 } else if (root.adapter) {
                     root.adapter.enabled = !root.adapter.enabled;
                 }
@@ -737,7 +778,7 @@ PanelShell {
             anchors.rightMargin: 40
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.tab = tabRoot.index
+            onClicked: root.showTab(tabRoot.index)
         }
     }
 

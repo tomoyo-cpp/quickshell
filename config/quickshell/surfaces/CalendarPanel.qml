@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Wayland
 import "root:/"
 
 // Month view and the day's tasks, hanging off the clock in the bar.
@@ -13,6 +14,11 @@ PanelShell {
     // task list. The two leading terms are the clock block and its rule,
     // plus the Column spacing each one adds.
     bodyHeight: 58 + 1 + 12 + 28 + 18 + weekRows * 27 + 1 + 22 + 26 + Math.min(84, taskList.contentHeight) + 46
+
+    // The task field needs the keyboard. Layer surfaces get none by default,
+    // which is why typing went nowhere; on-demand hands it over on a click
+    // into the panel and gives it back when the panel closes.
+    WlrLayershell.keyboardFocus: root.open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     property int monthOffset: 0
     property date selectedDay: new Date()
@@ -279,6 +285,12 @@ PanelShell {
                 onAccepted: {
                     Todos.add(root.selectedDay, text);
                     text = "";
+                }
+                Keys.onEscapePressed: {
+                    if (text !== "")
+                        text = "";
+                    else
+                        root.bar.closePopup();
                 }
             }
 

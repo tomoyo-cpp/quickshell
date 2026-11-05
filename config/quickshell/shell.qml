@@ -10,8 +10,26 @@ ShellRoot {
         Bar {}
     }
 
+    // The wallpaper: sharp behind windows (gone in the overview), and a
+    // blurred copy in niri's backdrop.
+    Variants {
+        model: Quickshell.screens
+
+        Wallpaper {}
+    }
+    Variants {
+        model: Quickshell.screens
+
+        Wallpaper {
+            backdrop: true
+        }
+    }
+
     // Notification toasts (primary screen).
     Toasts {}
+
+    // Lock screen, drawn like ly. Idle until `qs ipc call lock lock`.
+    Lock {}
 
     // Volume / brightness overlay.
     Osd {}
@@ -29,9 +47,8 @@ ShellRoot {
     // And niri's window outlines.
     property var niriTheme: NiriTheme
 
-    // GTK apps and the lock screen. Both no-op unless their toggle is on.
+    // GTK apps. No-op unless its toggle is on.
     property var gtkTheme: GtkTheme
-    property var swaylockTheme: SwaylockTheme
 
     // And Spotify, restyled in place over the devtools protocol.
     property var spotifyTheme: SpotifyTheme

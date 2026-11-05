@@ -58,4 +58,21 @@ Pill {
         color: Theme.icon
         size: 14
     }
+
+    // Mullvad: shield-lock when the tunnel is up, red open shield when
+    // traffic is going out unprotected, amber when lockdown is blocking it.
+    // A click here opens the network panel straight on its VPN tab.
+    Glyph {
+        visible: Settings.showVpn && Mullvad.available
+        text: Mullvad.glyph
+        color: Mullvad.color
+        size: 15
+
+        MouseArea {
+            anchors.fill: parent
+            anchors.margins: -4
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.bar.openNetworkTab(2)
+        }
+    }
 }

@@ -4,9 +4,10 @@
 // The bar itself is started by the systemd user unit declared in
 // configuration.nix (quickshell.service), so it restarts on failure. Quickshell
 // also owns org.freedesktop.Notifications, which is why mako stays disabled.
-spawn-at-startup "wl-paste" "--watch" "cliphist" "store" "-max-items" "15"
-spawn-at-startup "/home/tomoyo/.config/niri/start-awww.sh"
-spawn-at-startup "mullvad-gui"
+// Clipboard history; clip-store.sh keeps password-manager copies out of it.
+spawn-sh-at-startup "wl-paste --watch ~/.config/quickshell/scripts/clip-store.sh"
+// No mullvad-gui here: the daemon runs as a system service and the bar's
+// VPN tab drives it, so the Electron app is only needed for account setup.
 
 // niri ships no X server of its own. This hands X11-only clients to
 // xwayland-satellite, which niri starts on demand and which sets DISPLAY.
@@ -116,7 +117,12 @@ input {
 // https://niri-wm.github.io/niri/Configuration:-Layout
 layout {
     // Set gaps around windows in logical pixels.
-    gaps 22
+    gaps 16
+
+    // See-through workspaces. The shell's sharp wallpaper
+    // (surfaces/Wallpaper.qml) fades out in the overview, so each workspace
+    // there shows the blurred backdrop behind it.
+    background-color "transparent"
 
     // When to center a column when changing focus, options are:
     // - "never", default behavior, focusing an off-screen column will keep at the left
@@ -163,7 +169,7 @@ layout {
         off
 
         // How many logical pixels the ring extends out from the windows.
-        width 1
+        width 2
 
         // Colors can be set in a variety of ways:
         // - CSS named colors: "red"
@@ -199,7 +205,7 @@ layout {
     border { 
         on 
         
-        width 1
+        width 2
 
         active-color "#ffffff"
         inactive-color "#585b70"
@@ -306,16 +312,12 @@ window-rule {
     open-floating true
 }
 
-// Example: block out two password managers from screen capture.
-// (This example rule is commented out with a "/-" in front.)
-/-window-rule {
+// Password managers never appear in screenshots, recordings or screen
+// shares: niri draws them as a black box there.
+window-rule {
     match app-id=r#"^org\.keepassxc\.KeePassXC$"#
-    match app-id=r#"^org\.gnome\.World\.Secrets$"#
 
     block-out-from "screen-capture"
-
-    // Use this instead if you want them visible on third-party screenshot tools.
-    // block-out-from "screencast"
 }
 
 // Example: enable rounded corners for all windows.
@@ -325,11 +327,11 @@ window-rule {
     clip-to-geometry true
 }
 
-// The second awww daemon (started with --namespace backdrop in start-awww.sh)
-// renders into niri's fixed backdrop, so the wallpaper stays still in the
-// overview. The default awww daemon still draws the wallpaper behind windows.
+// The shell's blurred wallpaper (surfaces/Wallpaper.qml) goes into niri's
+// backdrop: around the workspaces in the overview, and through them, since
+// they are transparent. The sharp one behind windows fades out there.
 layer-rule {
-    match namespace="^awww-daemonbackdrop$"
+    match namespace="^quickshell-backdrop$"
     place-within-backdrop true
 }
 
@@ -359,9 +361,9 @@ binds {
     // The allow-when-locked=true property makes them work even when the session is locked.
     // Using spawn-sh allows to pass multiple arguments together with the command.
     // "-l 1.0" limits the volume to 100%.
-    XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "/home/tomoyo/.local/bin/volume up"; }
-    XF86AudioLowerVolume allow-when-locked=true { spawn-sh "/home/tomoyo/.local/bin/volume down"; }
-    XF86AudioMute        allow-when-locked=true { spawn-sh "/home/tomoyo/.local/bin/volume mute"; }
+    XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "~/.local/bin/volume up"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn-sh "~/.local/bin/volume down"; }
+    XF86AudioMute        allow-when-locked=true { spawn-sh "~/.local/bin/volume mute"; }
     XF86AudioMicMute     allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
 
     // Example media keys mapping using playerctl.
@@ -608,6 +610,7 @@ binds {
     Ctrl+Alt+Delete { quit; }
 
     Mod+Shift+P { power-off-monitors; }
+    Mod+Alt+L hotkey-overlay-title="Lock the screen" { spawn-sh "~/.config/quickshell/scripts/lock.sh"; }
     Mod+N { spawn-sh "qs ipc call bar toggle network"; }
     Mod+Y { spawn-sh "qs ipc call bar toggle clipboard"; }
     Mod+T { spawn-sh "qs ipc call bar toggle calendar"; }
@@ -622,6 +625,6 @@ binds {
 
 //qs-cursor
 cursor {
-    xcursor-theme "capitaine-cursors"
+    xcursor-theme "volantes_cursors"
     xcursor-size 23
 }

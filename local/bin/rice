@@ -1,0 +1,510 @@
+#!/usr/bin/env bash
+# rice — put this rice on a machine, keep it in sync, keep it saved.
+#
+# Everyday
+#   rice              check everything: links, system, VPN, DNS, lock
+#   rice apply        after any change: link the dotfiles, rebuild NixOS
+#   rice save         copy the shell's current look into the repo
+#   rice update       newer packages: move nixpkgs forward, show the changes
+#
+# New machine
+#   rice install      everything, once, on a fresh NixOS install
+#
+# Occasionally
+#   rice diff         what `apply` would change in the system, without doing it
+#   rice link         only the dotfile symlinks (--dry-run to preview)
+#   rice boot         rebuild for the next boot instead of now
+#   rice new-host <n> set up nixos/hosts/<n> for another machine
+#   rice map          open the overview page
+#
+# Only what git tracks is linked, file by file, so an application can never
+# write its data into the repo — except quickshell/, niri/ and nvim/, which
+# are the rice's own and linked whole. Nothing real is ever deleted: a file in
+# the way moves to <path>.backup-<timestamp>, a file the repo stops tracking
+# is moved back out into place, and seeding never overwrites existing state.
+
+set -euo pipefail
+
+DOTFILES="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)"
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+
+# Flakes are switched on in common.nix, but a fresh install has not had that
+# applied yet — this makes the very first rebuild work too.
+export NIX_CONFIG="${NIX_CONFIG:+$NIX_CONFIG$'\n'}extra-experimental-features = nix-command flakes"
+
+# NixOS's setuid sudo lives in /run/wrappers/bin. Put it first, since
+# nixos-rebuild --sudo looks sudo up on PATH.
+[[ -d /run/wrappers/bin ]] && export PATH="/run/wrappers/bin:$PATH"
+
+if [[ -t 1 ]]; then
+    B=$'\e[1m' D=$'\e[2m' R=$'\e[31m' G=$'\e[32m' Y=$'\e[33m' C=$'\e[36m' N=$'\e[0m'
+else
+    B='' D='' R='' G='' Y='' C='' N=''
+fi
+say()  { printf '%s\n' "$*"; }
+head_() { printf '\n%s%s%s\n' "$B" "$*" "$N"; }
+row()  { printf '  %b%-8s%b %s\n' "$1" "$2" "$N" "$3"; }
+die()  { printf '%srice:%s %s\n' "$R" "$N" "$*" >&2; exit 1; }
+tilde() { printf '%s' "${1/#$HOME/\~}"; }
+
+# ── What goes where ──────────────────────────────────────────────────────
+# Directories under config/ that belong to the rice outright: linked whole,
+# because the shell rewrites files inside them in place (config.kdl) or they
+# are code. Everything else is linked file by file.
+WHOLE=(quickshell niri nvim)
+
+tracked() { git -C "$DOTFILES" ls-files -- "$@"; }
+
+# One list, used by link and status alike. "<repo path>|<destination>".
+mappings() {
+    local name rel
+    for name in "${WHOLE[@]}"; do
+        [[ -d $DOTFILES/config/$name ]] && printf '%s|%s\n' "$DOTFILES/config/$name" "$CONFIG/$name"
+    done
+    while read -r rel; do
+        name="${rel#config/}"; name="${name%%/*}"
+        [[ " ${WHOLE[*]} " == *" $name "* ]] && continue
+        printf '%s|%s\n' "$DOTFILES/$rel" "$CONFIG/${rel#config/}"
+    done < <(tracked config)
+    while read -r rel; do
+        printf '%s|%s\n' "$DOTFILES/$rel" "$HOME/.${rel}"
+    done < <(tracked local)
+}
+
+# Quickshell keys its state directory on an md5 of the config path it loaded,
+# so it is per-user and has to be computed rather than hardcoded.
+qs_state_dir() {
+    printf '%s/quickshell/by-shell/%s' "$STATE" \
+        "$(printf '%s' "$CONFIG/quickshell/shell.qml" | md5sum | cut -c1-32)"
+}
+
+# Every symlink on this machine that points into the repo.
+repo_links() {
+    {
+        find "$CONFIG" -maxdepth 3 -type l -lname "$DOTFILES/*" 2>/dev/null
+        find "$HOME/.local" -maxdepth 3 -type l -lname "$DOTFILES/*" 2>/dev/null
+    } | sort -u
+}
+
+# Links the current mapping does not produce: pointing at nothing (stale), at
+# something git no longer tracks (released), or at a directory that is now
+# linked file by file (unfold). Prints "<kind>|<link>".
+leftovers() {
+    local l t rel map
+    map="$(mappings)"   # once, and not in a pipe: grep -q would SIGPIPE it
+    while read -r l; do
+        [[ -n $l ]] || continue
+        t="$(readlink "$l")"
+        rel="${t#"$DOTFILES"/}"
+        if [[ ! -e $t ]]; then
+            printf 'stale|%s\n' "$l"
+        elif [[ -z $(tracked "$rel") ]]; then
+            printf 'release|%s\n' "$l"
+        elif [[ -d $t ]] && ! grep -qxF "$t|$l" <<<"$map"; then
+            printf 'unfold|%s\n' "$l"
+        fi
+    done < <(repo_links)
+}
+
+# Untracked files under a repo directory — generated or app-written, so they
+# belong on the machine, not in the repo.
+untracked_in() { git -C "$DOTFILES" ls-files --others -- "$1"; }
+
+host_or_default() {
+    local host="${1:-$(uname -n)}"
+    [[ -d $DOTFILES/nixos/hosts/$host ]] || die "no nixos/hosts/$host — pass a host ($(ls "$DOTFILES/nixos/hosts" | tr '\n' ' ')) or run: rice new-host $host"
+    printf '%s' "$host"
+}
+
+# The flake only sees files git knows about. A new module that was never
+# `git add`ed is silently absent from the build, which is a confusing way to
+# lose an afternoon — so say so up front.
+warn_untracked() {
+    local untracked
+    untracked="$(git -C "$DOTFILES" ls-files --others --exclude-standard -- flake.nix flake.lock nixos)"
+    if [[ -n $untracked ]]; then
+        say "${Y}warning:${N} untracked, so invisible to the flake (git add them):"
+        sed 's/^/  /' <<<"$untracked"
+    fi
+}
+
+# ── link ─────────────────────────────────────────────────────────────────
+link_one() {
+    local src=$1 dst=$2 dry=$3
+    if [[ -L $dst && "$(readlink "$dst")" == "$src" ]]; then
+        row "$G" ok "$(tilde "$dst")"
+        return
+    fi
+    # Dry run: its directory would have been unfolded by now.
+    if (( dry )) && [[ -L $(dirname "$dst") ]]; then
+        row "$C" link "$(tilde "$dst")"
+        return
+    fi
+    if [[ -e $dst || -L $dst ]]; then
+        row "$Y" backup "$(tilde "$dst") -> $(tilde "$dst").backup-$STAMP"
+        (( dry )) || mv "$dst" "$dst.backup-$STAMP"
+    fi
+    row "$C" link "$(tilde "$dst")"
+    (( dry )) || { mkdir -p "$(dirname "$dst")"; ln -s "$src" "$dst"; }
+}
+
+seed_state() {
+    local dry=$1 dir f dst
+    dir="$(qs_state_dir)"
+    for f in "$DOTFILES"/state/quickshell/*.json; do
+        [[ -e $f ]] || continue
+        dst="$dir/$(basename "$f")"
+        if [[ -e $dst ]]; then
+            row "$G" keep "$(tilde "$dst")"
+        else
+            row "$C" seed "$(tilde "$dst")"
+            (( dry )) || { mkdir -p "$dir"; cp "$f" "$dst"; }
+        fi
+    done
+}
+
+cmd_link() {
+    local dry=0 src dst kind l t f rel
+    [[ ${1:-} == --dry-run ]] && dry=1
+    say "dotfiles: $(tilde "$DOTFILES")"
+    (( dry )) && say "(dry run — nothing will be changed)"
+
+    # Before linking, so an unfolded directory is real by the time its files
+    # are linked into it.
+    head_ "Cleanup"
+    local any=0
+    while IFS='|' read -r kind l; do
+        [[ -n $l ]] || continue
+        any=1
+        t="$(readlink "$l")"
+        case $kind in
+            stale)
+                row "$Y" remove "$(tilde "$l") ${D}(points at nothing)${N}"
+                (( dry )) || rm "$l"
+                ;;
+            release)
+                # No longer part of the rice: put the real thing back where
+                # the link was, so the application keeps its data.
+                row "$C" release "$(tilde "$l") ${D}(moved out of the repo)${N}"
+                (( dry )) || { rm "$l"; mv "$t" "$l"; }
+                ;;
+            unfold)
+                row "$C" unfold "$(tilde "$l") ${D}(now linked file by file)${N}"
+                if (( ! dry )); then
+                    rm "$l"; mkdir -p "$l"
+                    rel="${t#"$DOTFILES"/}"
+                    while read -r f; do
+                        [[ -n $f ]] || continue
+                        printf '           %s%s -> %s%s\n' "$D" "$f" "$(tilde "$l/${f#"$rel"/}")" "$N"
+                        mkdir -p "$l/$(dirname "${f#"$rel"/}")"
+                        mv "$DOTFILES/$f" "$l/${f#"$rel"/}"
+                    done < <(untracked_in "$rel")
+                fi
+                ;;
+        esac
+    done < <(leftovers)
+    (( any )) || row "$G" none ""
+
+    head_ "Links"
+    while IFS='|' read -r src dst; do link_one "$src" "$dst" "$dry"; done < <(mappings)
+
+    # Copied, not linked: the shell writes these atomically, which would
+    # replace a symlink with a plain file anyway. Existing state is never
+    # touched — `rice save` is the way back into the repo.
+    head_ "Shell state (seeded only if absent)"
+    seed_state "$dry"
+
+    # Leave empty directories behind by a release or unfold out of the repo.
+    (( dry )) || find "$DOTFILES/config" "$DOTFILES/local" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+}
+
+# ── nixos ────────────────────────────────────────────────────────────────
+cmd_rebuild() {
+    local action=$1 host
+    host="$(host_or_default "${2:-}")"
+    warn_untracked
+    say "${B}nixos-rebuild $action${N} ${D}$(tilde "$DOTFILES")#$host${N}"
+    # --impure: the host's hardware-configuration.nix is read from /etc/nixos
+    # rather than committed. See flake.nix.
+    # --sudo: build as you, activate as root. Root reading a repo it does not
+    # own is what trips git's safe.directory check.
+    nixos-rebuild "$action" --flake "$DOTFILES#$host" --impure --sudo
+}
+
+# Link, then rebuild. Switching the login manager under a running session
+# can end that session, so when the new system has a different one this
+# rebuilds for the next boot instead and says so.
+cmd_apply() {
+    local host out cur new
+    host="$(host_or_default "${1:-}")"
+    head_ "Dotfiles"
+    cmd_link | sed -n '/^  \(backup\|link\|remove\|release\|unfold\|seed\)/p' | grep . || row "$G" ok "all linked"
+
+    head_ "System"
+    warn_untracked
+    out="$(nix build --impure --no-link --print-out-paths \
+        "$DOTFILES#nixosConfigurations.$host.config.system.build.toplevel")"
+    if [[ $(readlink -f /run/current-system) == "$out" ]]; then
+        row "$G" ok "already running this system"
+        return
+    fi
+    cur="$(readlink -f /run/current-system/etc/systemd/system/display-manager.service 2>/dev/null || true)"
+    new="$(readlink -f "$out/etc/systemd/system/display-manager.service" 2>/dev/null || true)"
+    if [[ ${cur##*/} != "${new##*/}" ]]; then
+        say "${Y}the login screen changes (${cur##*/} -> ${new##*/}):${N} applying at next boot, so this session is not ended"
+        cmd_rebuild boot "$host"
+        say "${B}reboot to finish.${N}"
+    else
+        cmd_rebuild switch "$host"
+    fi
+}
+
+cmd_diff() {
+    local host out
+    host="$(host_or_default "${1:-}")"
+    warn_untracked
+    say "${B}building${N} ${D}$host — nothing is activated${N}"
+    out="$(nix build --impure --no-link --print-out-paths \
+        "$DOTFILES#nixosConfigurations.$host.config.system.build.toplevel")"
+    if [[ $(readlink -f /run/current-system) == "$out" ]]; then
+        say "${G}identical to the running system.${N}"
+    else
+        say "changes against the running system:"
+        nix store diff-closures /run/current-system "$out"
+        say "${D}apply with: rice apply${N}"
+    fi
+}
+
+cmd_update() {
+    nix flake update --flake "$DOTFILES"
+    git -C "$DOTFILES" --no-pager diff --stat -- flake.lock
+    cmd_diff "${1:-}"
+}
+
+cmd_new_host() {
+    local name=${1:?usage: rice new-host <name>} dir sv
+    dir="$DOTFILES/nixos/hosts/$name"
+    [[ -e $dir ]] && die "$(tilde "$dir") already exists"
+    # stateVersion belongs to the install, not the repo: take the machine's own.
+    sv="$(sed -n 's/.*system\.stateVersion *= *"\([^"]*\)".*/\1/p' /etc/nixos/configuration.nix 2>/dev/null | head -1)"
+    [[ -n $sv ]] || sv="$(nixos-version | cut -d. -f1-2)"
+    mkdir -p "$dir"
+    cat > "$dir/default.nix" <<EOF
+# Host: $name.
+#
+# Only what is true of this one machine; the desktop is ../../common.nix and
+# the disk layout is /etc/nixos/hardware-configuration.nix. See hosts/nixos/
+# for a filled-in example (Intel VA-API, swapfile).
+{ pkgs, ... }:
+
+{
+  imports = [ ../../common.nix ];
+
+  networking.hostName = "$name";
+
+  # GPU video decode/encode. Intel needs a driver (see hosts/nixos); AMD is
+  # covered by Mesa as is.
+  # hardware.graphics.extraPackages = with pkgs; [ intel-media-driver ];
+  # environment.sessionVariables.LIBVA_DRIVER_NAME = "iHD";
+
+  # swapDevices = [ { device = "/var/lib/swapfile"; size = 8 * 1024; } ];
+
+  # The release this machine was first installed with — never bump it.
+  system.stateVersion = "$sv";
+}
+EOF
+    git -C "$DOTFILES" add "$dir"
+    say "created $(tilde "$dir/default.nix") (staged, so the flake can see it)"
+    say "next: rice apply $name"
+}
+
+# ── state ────────────────────────────────────────────────────────────────
+cmd_snapshot() {
+    local dir f src changed=0
+    dir="$(qs_state_dir)"
+    mkdir -p "$DOTFILES/state/quickshell"
+    head_ "Shell state -> state/quickshell/"
+    # The look of the desktop. recent-apps, clipboard pins and todos are left
+    # out: personal, and nothing another machine should start with.
+    for f in settings.json theme-presets.json equalizer.json; do
+        src="$dir/$f"
+        [[ -e $src ]] || { row "$D" absent "$f"; continue; }
+        if cmp -s "$src" "$DOTFILES/state/quickshell/$f"; then
+            row "$G" same "$f"
+        else
+            cp "$src" "$DOTFILES/state/quickshell/$f"
+            row "$C" saved "$f"
+            changed=1
+        fi
+    done
+
+    say
+    git -C "$DOTFILES" --no-pager diff --stat -- state
+    (( changed )) && say "${D}review with git diff, then commit${N}"
+    return 0
+}
+
+# ── post ─────────────────────────────────────────────────────────────────
+# Things a rebuild cannot do, because they live in $HOME or need the network
+# as the user. Each is skipped if already done, so rerunning is harmless.
+cmd_post() {
+    head_ "Spotify (spicetify-patched copy)"
+    if [[ -x $HOME/.local/share/spicetify-spotify/spotify ]]; then
+        row "$G" ok "already built — rerun spotify-sync after a Spotify update"
+    elif command -v spicetify >/dev/null; then
+        row "$C" run "spotify-sync"
+        "$DOTFILES/local/bin/spotify-sync"
+    else
+        row "$Y" skip "spicetify not installed yet — rice apply first"
+    fi
+
+    head_ "Wallpapers"
+    local n
+    n="$(find "$HOME/Pictures/Wallpapers" -maxdepth 1 -type f 2>/dev/null | wc -l)"
+    if (( n > 0 )); then
+        row "$G" ok "$n in ~/Pictures/Wallpapers"
+    else
+        row "$Y" empty "$(tilde "$HOME/Pictures/Wallpapers") — not in the repo; copy them over"
+    fi
+}
+
+cmd_bootstrap() {
+    local host
+    host="$(host_or_default "${1:-}")"
+    [[ -f /etc/nixos/hardware-configuration.nix || -f $DOTFILES/nixos/hosts/$host/hardware-configuration.nix ]] ||
+        die "no hardware-configuration.nix — run: sudo nixos-generate-config"
+    cmd_link
+    head_ "NixOS"
+    cmd_rebuild switch "$host"
+    cmd_post
+    say
+    say "${G}done.${N} log out and pick niri at the greeter."
+}
+
+# ── status ───────────────────────────────────────────────────────────────
+cmd_status() {
+    local src dst l bad=0
+    say "dotfiles: $(tilde "$DOTFILES")  ${D}($(git -C "$DOTFILES" rev-parse --abbrev-ref HEAD) @ $(git -C "$DOTFILES" rev-parse --short HEAD))${N}"
+
+    head_ "Links"
+    while IFS='|' read -r src dst; do
+        if [[ -L $dst && "$(readlink "$dst")" == "$src" ]]; then
+            row "$G" ok "$(tilde "$dst")"
+        elif [[ -L $dst ]]; then
+            row "$R" wrong "$(tilde "$dst") -> $(readlink "$dst")"; bad=1
+        elif [[ -e $dst ]]; then
+            row "$Y" real "$(tilde "$dst") ${D}(a real file is in the way)${N}"; bad=1
+        else
+            row "$R" missing "$(tilde "$dst")"; bad=1
+        fi
+    done < <(mappings)
+    local kind
+    while IFS='|' read -r kind l; do
+        [[ -n $l ]] && { row "$Y" "$kind" "$(tilde "$l")"; bad=1; }
+    done < <(leftovers)
+    (( bad )) && say "  ${D}fix with: rice apply${N}"
+
+    head_ "Shell state"
+    local dir f
+    dir="$(qs_state_dir)"
+    for f in "$DOTFILES"/state/quickshell/*.json; do
+        f="$(basename "$f")"
+        if [[ ! -e $dir/$f ]]; then
+            row "$Y" unseeded "$f ${D}(rice apply)${N}"
+        elif cmp -s "$dir/$f" "$DOTFILES/state/quickshell/$f"; then
+            row "$G" saved "$f"
+        else
+            row "$Y" changed "$f ${D}(rice save to keep it)${N}"
+        fi
+    done
+
+    head_ "System"
+    local locked running
+    locked="$(sed -n '/"nixpkgs"/,/"original"/s/.*"rev": "\([0-9a-f]*\)".*/\1/p' "$DOTFILES/flake.lock" | head -1)"
+    running="$(nixos-version --revision 2>/dev/null || true)"
+    if [[ $locked == "$running" ]]; then
+        row "$G" pinned "nixpkgs ${locked:0:12} — same as running"
+    else
+        row "$Y" differs "flake.lock ${locked:0:12}, running ${running:0:12} ${D}(rice apply)${N}"
+    fi
+    row "$D" host "$(uname -n) $([[ -d $DOTFILES/nixos/hosts/$(uname -n) ]] && echo "${G}✓${N}" || echo "${R}no nixos/hosts/$(uname -n)${N}")"
+    if systemctl --user is-active --quiet quickshell.service 2>/dev/null; then
+        row "$G" running "quickshell.service"
+    else
+        row "$R" down "quickshell.service"
+    fi
+
+    head_ "Privacy"
+    privacy_checks
+
+    head_ "Repo"
+    local dirty
+    dirty="$(git -C "$DOTFILES" status --porcelain)"
+    if [[ -z $dirty ]]; then
+        row "$G" clean ""
+    else
+        sed 's/^/  /' <<<"$dirty"
+    fi
+    warn_untracked
+}
+
+# What the system promises, checked against what is actually happening.
+privacy_checks() {
+    local v
+    if command -v mullvad >/dev/null; then
+        v="$(mullvad status 2>/dev/null | head -1)"
+        case $v in
+            Connected*) row "$G" vpn "$v" ;;
+            *) row "$R" vpn "${v:-mullvad daemon not answering} ${D}(mullvad connect)${N}" ;;
+        esac
+        v="$(mullvad lockdown-mode get 2>/dev/null || true)"
+        [[ $v == *": on" ]] && row "$G" lockdown "on — nothing leaves outside the tunnel" ||
+            row "$Y" lockdown "off ${D}(mullvad lockdown-mode set on)${N}"
+        v="$(mullvad auto-connect get 2>/dev/null || true)"
+        [[ $v == *": on" ]] && row "$G" autocon "on" || row "$Y" autocon "off ${D}(mullvad auto-connect set on)${N}"
+    fi
+    if systemctl is-active --quiet tor.service 2>/dev/null; then
+        row "$G" tor "SOCKS on 127.0.0.1:9050 — torsocks <cmd>"
+    else
+        row "$Y" tor "not running"
+    fi
+    if command -v resolvectl >/dev/null && systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+        v="$(resolvectl status 2>/dev/null | sed -n 's/.*DNS Servers: //p' | head -1)"
+        row "$G" dns "resolved, DNS-over-TLS → ${v:-?}"
+    else
+        row "$Y" dns "systemd-resolved not running ${D}(rice apply)${N}"
+    fi
+    if systemctl --user is-active --quiet swayidle.service 2>/dev/null; then
+        row "$G" autolock "on"
+    else
+        row "$Y" autolock "off ${D}(rice apply)${N}"
+    fi
+    if systemctl is-active --quiet tailscaled 2>/dev/null; then
+        row "$Y" tailnet "tailscaled running ${D}(remote layer on — remote off)${N}"
+    fi
+}
+
+cmd_map() {
+    local out="${XDG_CACHE_HOME:-$HOME/.cache}/rice/map"
+    python3 -I "$DOTFILES/tools/ricemap.py" "$DOTFILES" "$out"
+    say "wrote $(tilde "$out/index.html")"
+    [[ ${1:-} == --no-open ]] || { xdg-open "$out/index.html" >/dev/null 2>&1 & }
+}
+
+case "${1:-status}" in
+    status | st)            cmd_status ;;
+    apply)                  cmd_apply "${2:-}" ;;
+    save | snapshot)        cmd_snapshot ;;
+    update)                 cmd_update "${2:-}" ;;
+    install | bootstrap)    cmd_bootstrap "${2:-}" ;;
+    diff | build)           cmd_diff "${2:-}" ;;
+    link)                   shift; cmd_link "$@" ;;
+    switch | boot | test)   cmd_rebuild "$1" "${2:-}" ;;
+    post)                   cmd_post ;;
+    new-host)               cmd_new_host "${2:-}" ;;
+    map)                    shift; cmd_map "$@" ;;
+    help | -h | --help)     sed -n '2,/^# Only/{/^# Only/d;s/^# \{0,1\}//p}' "${BASH_SOURCE[0]}" ;;
+    *)                      die "unknown command '$1' — try: rice help" ;;
+esac

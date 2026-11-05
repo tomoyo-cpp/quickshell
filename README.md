@@ -30,7 +30,7 @@ cursor and Spotify — live, no restarts, no reload script.
 | **Shell** | [Quickshell](https://quickshell.org) 0.3.0 (QML / Qt 6.11) — written from scratch |
 | **Terminal** | kitty + fish + starship |
 | **Editor** | Neovim 0.12, lazy.nvim, 12 plugins |
-| **Wallpaper** | awww, two surfaces (sharp behind windows, blurred in overview) |
+| **Wallpaper** | drawn by the shell: sharp behind windows, fading out in the overview so the see-through workspaces show a GPU-blurred copy in niri's backdrop |
 | **Font** | JetBrainsMono Nerd Font |
 | **Palette** | Catppuccin — 4 flavours × 16 accents |
 
@@ -53,6 +53,17 @@ picker, which curates ~200 installed theme directories down to 15 and renders it
 own previews with `xcur2png`.
 
 ![Appearance tab](assets/dashboard-appearance.png)
+
+### Lock — `Mod+Alt+L`, or close the lid
+
+Drawn exactly like ly, the login screen at boot: white on black, the same
+box, date and time top right, no animation. Built on ext-session-lock, so the
+compositor draws nothing else until PAM accepts the password, and the session
+behind it is exactly as you left it. Closing the lid suspends, locking first,
+so waking shows this screen. <kbd>F1</kbd> / <kbd>F2</kbd> shut down / reboot
+(press twice). If the bar is not running, `lock.sh` starts it first.
+
+![Lock screen](assets/lock.png)
 
 ### Media — `Mod+P`
 
@@ -98,7 +109,7 @@ One accent change fans out to every one of these:
 | Bar and panels | `Theme.qml`, reactive — no reload |
 | niri borders, focus ring, gaps, corner radius | rewrites `config.kdl` in place; niri hot-reloads |
 | kitty | generated `colors.conf` |
-| swaylock | generated config, read fresh at each lock |
+| Lock screen | always white on black, like ly — not themed on purpose |
 | GTK 3/4 | `settings.ini` + `gsettings`, live over dconf |
 | Cursor | `~/.icons/default`, `gsettings`, and niri's `cursor` block |
 | Spotify | spicetify `text` theme, pushed into the running client over CDP |
@@ -179,6 +190,7 @@ the client.
 | <kbd>Mod</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> | Screenshot region |
 | <kbd>Print</kbd> | Screenshot screen |
 | <kbd>Mod</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | Power off monitors |
+| <kbd>Mod</kbd>+<kbd>Alt</kbd>+<kbd>L</kbd> | Lock |
 | <kbd>Mod</kbd>+<kbd>Escape</kbd> | Inhibit shortcuts |
 | <kbd>Mod</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> | Quit niri |
 
@@ -191,80 +203,117 @@ Media, volume, brightness and mic-mute keys all work, and stay live while locked
 The tree mirrors where things actually live, so the mapping is obvious:
 
 ```
-install.sh      links the whole thing into place
-nixos/          configuration.nix, pkgs/                          -> /etc/nixos
-config/         everything under ~/.config
+flake.nix       the system: one pinned nixpkgs, one entry per nixos/hosts/<name>
+nixos/
+  common.nix      the desktop — identical on every machine
+  hosts/nixos/    this laptop only: hostname, Intel VA-API, swap, stateVersion
+  pkgs/           zen-browser, wl-uinput-proxy — pinned, not in nixpkgs
+  configuration.nix  legacy shim, so a plain `nixos-rebuild` still works
+config/         everything under ~/.config                           -> symlinked
   quickshell/     the shell — surfaces, widgets, components, services, scripts
   niri/           config.kdl, wallpaper startup
   nvim/           init.lua, lua/{options,keymaps,plugins,lsp}.lua, lazy-lock.json
-  kitty/ fish/ yazi/ cava/ btop/ wlogout/ mako/ fastfetch/ starship.toml
-  glow/ Thunar/ obs-studio/ mimeapps.list
-  vscode/         settings.json, keybindings.json, snippets -> Code/User/
+  kitty/ fish/ fastfetch/ starship.toml       one file each, linked file by file
 local/
-  bin/            spotify-sync, spotify-theme, spotify-cdp,      -> ~/.local/bin
-                  volume, minecraft, remote-desktop, audio-remote
-  share/          desktop entries that override the packaged ones
-    applications/                                                -> ~/.local/share/applications
+  bin/            rice, spotify-sync, spotify-theme, spotify-cdp,    -> ~/.local/bin
+                  volume
+  share/applications/  spotify.desktop, launching the patched copy
+state/quickshell/  the shell's look: settings, theme presets, EQ  -> seeded once
+tools/ricemap.py   renders the whole repo as one browsable page (`rice map`)
 assets/         screenshots
 ```
 
-Everything is symlinked, so edits land straight in the repo:
+## Deploy
+
+Everything goes through one script, [`local/bin/rice`](local/bin/rice):
 
 ```sh
-git clone git@github.com:tomoyo-cpp/quickshell.git ~/dotfiles
-cd ~/dotfiles && ./install.sh          # --dry-run to preview
+# a fresh NixOS install
+nix-shell -p git --run 'git clone https://github.com/tomoyo-cpp/quickshell ~/dotfiles'
+~/dotfiles/local/bin/rice install       # everything, once
+
+# day to day
+rice              # is everything ok? links, system, VPN, DNS, lock
+rice apply        # after any change: link dotfiles + rebuild NixOS
+rice save         # copy the shell's current look into state/
+rice update       # newer packages (the only thing that moves nixpkgs)
 ```
 
-`install.sh` is idempotent — a correct symlink is left alone, and anything real
-in the way is moved to `<path>.backup-<timestamp>` rather than deleted. The
-NixOS link needs root, so it prints the two commands instead of running them.
+`rice help` lists the rest (`diff`, `link`, `boot`, `new-host`, `map`).
+
+Dotfiles are symlinks, so an edit is live the moment it is saved — only
+`nixos/` needs `rice apply`. When the login screen itself changes, `apply`
+rebuilds for the next boot instead, so the running session is not ended. Linking (`rice link`, also `./install.sh`) is idempotent: a correct symlink is left alone, anything real in
+the way is moved to `<path>.backup-<timestamp>`, and shell state is only ever
+seeded, never overwritten.
+
+Only files git tracks are linked, one by one — so kitty's generated colours,
+fish's universal variables or a game's desktop entry land on the machine,
+never in the repo. The exceptions are `quickshell/`, `niri/` and `nvim/`,
+which belong to the rice outright and are linked whole. Untracking a file and
+running `rice apply` moves it back out into place: that is how application
+settings (VS Code, OBS, Thunar, btop) left the repo without being lost.
+
+**Another machine:** `rice new-host <name>` scaffolds `nixos/hosts/<name>/`
+(hostname, GPU, swap, its own stateVersion); the flake picks up every
+directory there by itself, keyed by hostname.
+
+**Why `--impure`:** a host's `hardware-configuration.nix` is read from that
+machine's `/etc/nixos` rather than committed (it is filesystem UUIDs). `rice`
+passes the flag; by hand it is `nixos-rebuild switch --flake ~/dotfiles --impure`.
+Committing one at `nixos/hosts/<name>/hardware-configuration.nix` makes that
+host pure instead.
 
 ---
 
-## Remote access
+## Privacy
 
-`remote-desktop` serves this session over VNC on the tailnet; `audio-remote`
-streams its sound alongside, because RFB has no audio channel and no client
-setting can add one.
+Built in, on every machine the flake deploys to:
 
 | | |
 |---|---|
-| Picture | wayvnc, port 5900, tailnet only |
-| Sound | ffmpeg → MP3 over HTTP, port 8000, tailnet only |
-| Input | wl-uinput-proxy |
+| VPN | Mullvad daemon, driven from the bar — a shield next to Wi-Fi and Bluetooth, and a VPN tab in the network panel beside them (connect, location, lockdown, auto-connect, DNS blocklists) |
+| DNS | systemd-resolved → Mullvad's blocklisting resolver over DNS-over-TLS, Quad9 as fallback; DHCP-supplied resolvers are ignored |
+| Tor | Tor Browser, plus a system tor client for `torsocks <command>` |
+| Network identity | a different MAC per network, no hostname sent over DHCP, temporary IPv6 addresses |
+| Firewall | on, nothing open |
+| Screen | locks before every suspend (lid close suspends), after 10 minutes idle, and on <kbd>Mod</kbd>+<kbd>Alt</kbd>+<kbd>L</kbd> |
+| Passwords | KeePassXC: one encrypted `.kdbx` file in `~/Vault`, no account or server. In browsers its extension (installed once by policy) fills logins; for other apps, copy from KeePassXC (Auto-Type does not work on Wayland). Its window is blacked out of screenshots and screen shares, and copies from it stay out of clipboard history |
+| Sync | Syncthing keeps `~/Vault` the same on your other devices, device to device over TLS with no cloud copy; pair them at http://127.0.0.1:8384 (this machine only). Changed and deleted files are kept as versions in `~/Vault/.stversions` |
+| Online lookups | lyrics and web album art, one switch in Settings → Behaviour |
+| Login | ly on tty1 — no autologin |
+| Telemetry | `DO_NOT_TRACK`, .NET opt-out |
 
-The proxy is the part worth knowing about. niri does not run keybindings on
-`zwp_virtual_keyboard` input — keys arrive correctly formed and reach the
-focused window, but `Mod+D` and friends do nothing, whatever modifier they
-are bound to. The proxy re-implements the virtual keyboard and pointer on
-`/dev/uinput` so the compositor sees ordinary kernel events and binds behave
-as they do locally.
+`rice status` checks the parts that are runtime settings rather than config:
+whether Mullvad is connected, and whether auto-connect and lockdown mode
+(nothing leaves outside the tunnel) are on.
 
-Super only reaches the remote in a viewer's full-screen mode, where it holds
-the keyboard grab; Windows hands the key to Explorer otherwise. That is
-client-side and not fixable from here.
+Remote desktop is not part of the rice — no Tailscale, no open ports. It is
+a separate flake (`~/remote-desktop`) that layers itself onto the running
+system with `nixos-rebuild test` only while it is needed.
+
+---
 
 ## Notes if you're borrowing this
 
 - **`hardware-configuration.nix` is deliberately not here.** It is nothing but
   filesystem UUIDs specific to one laptop — useless to you and a stable
   hardware fingerprint if published. Run `nixos-generate-config` and yours
-  appears at `/etc/nixos/hardware-configuration.nix`, which is where the build
-  reads it from; only `configuration.nix` and `pkgs/` are symlinked out of this
-  repo.
-- **Spotify needs `spotify-sync` first.** spicetify can't patch the read-only
+  appears at `/etc/nixos/hardware-configuration.nix`, which is where the flake
+  reads it from.
+- **Spotify needs `spotify-sync` first** (`rice post` runs it). spicetify can't patch the read-only
   nixpkgs build, so the script builds a writable copy (~103 MB, symlinking
   everything but `Apps/`) and repoints the wrapper at it.
 - **Mason won't work.** It fetches dynamically linked binaries; language servers
   come from `configuration.nix` instead, wired up with `vim.lsp.enable`.
 - **Generated files are absent by design** — kitty colours, GTK `settings.ini`,
-  the swaylock config. They appear the first time the shell runs. `gtk-3.0/`,
-  `gtk-4.0/` and `swaylock/` aren't symlinked at all: their writers use atomic
+  They appear the first time the shell runs. `gtk-3.0/` and `gtk-4.0/`
+  aren't symlinked at all: their writers use atomic
   writes, which replace a symlink with a regular file.
 - **`~/.gitconfig` is not here.** It only holds a name and email, and those are
   yours to set.
-- **OBS is tracked except its websocket config**, which stores a server password
-  in plain text.
+- **Application settings are not here** — VS Code, OBS, browsers, games.
+  Only the rice is.
 - **The volume keys go through [`local/bin/volume`](local/bin/volume), not
   `wpctl` directly.** The equalizer in `configuration.nix` is a filter-chain
   sink, and making it the default puts two volume stages in series — what you
@@ -273,5 +322,6 @@ client-side and not fixable from here.
   reconnected at 62% capped output there however far the keys were pushed. The
   script pins every non-default sink to unity so one stage decides the level.
   Copy the equalizer without it and you inherit the bug.
-- The wallpaper path is hardcoded in
-  [`config/niri/start-awww.sh`](config/niri/start-awww.sh).
+- **Wallpapers are not in the repo.** The Wallpaper tab reads
+  `~/Pictures/Wallpapers`; the pick is kept in `~/.local/state/rice/wallpaper`,
+  and with nothing picked the first image there is used.
